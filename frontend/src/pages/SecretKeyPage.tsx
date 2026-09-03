@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { verifyAuth } from '../services/api';
-import { MapPin, Eye, EyeOff, ArrowRight, Info } from 'lucide-react';
+import { MapPin, Eye, EyeOff, Info } from 'lucide-react';
 
 interface SecretKeyPageProps {
   onSuccess: (token: string) => void;
