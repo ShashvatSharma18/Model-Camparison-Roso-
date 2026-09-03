@@ -35,26 +35,39 @@ export const SecretKeyPage: React.FC<SecretKeyPageProps> = ({ onSuccess }) => {
   };
 
   return (
-    <div className="auth-page-container">
+    <div className="auth-page-wrapper">
+      
+      <div className="auth-header-step">
+        <div className="auth-step-number">1</div>
+        <div className="auth-step-title">Secret Key Authentication</div>
+      </div>
+
       <div className="auth-card">
-        <div className="auth-logo-badge">
-          <MapPin size={32} />
+        
+        <div className="auth-logo-container">
+          <div className="auth-logo-icon">
+            <MapPin size={24} fill="currentColor" />
+          </div>
+          <div className="auth-logo-text">
+            <h1>RosoTravel</h1>
+            <p>AI POC</p>
+          </div>
         </div>
-        <h2 className="auth-title">RosoTravel AI POC</h2>
-        <h3 style={{ fontSize: '16px', fontWeight: 700, color: '#334155', marginBottom: '4px' }}>Welcome Back!</h3>
+
+        <h3 style={{ fontSize: '18px', fontWeight: 700, color: '#0F172A', marginBottom: '8px' }}>Welcome Back!</h3>
         <p className="auth-subtitle">Please enter your secret key to continue</p>
 
-        <form onSubmit={handleSubmit}>
-          <div className="form-group" style={{ textAlign: 'left', marginBottom: '20px' }}>
-            <label className="form-label">Secret Key</label>
+        <form onSubmit={handleSubmit} style={{ position: 'relative', zIndex: 2 }}>
+          <div className="auth-form-group">
+            <label className="auth-label">Secret Key</label>
             <div style={{ position: 'relative' }}>
               <input
                 type={showPassword ? 'text' : 'password'}
-                className="input-text"
-                placeholder="Enter secret key..."
+                className="auth-input"
+                placeholder="•••••••••••••••••"
                 value={secretKey}
                 onChange={(e) => setSecretKey(e.target.value)}
-                style={{ paddingRight: '40px' }}
+                style={{ paddingRight: '40px', letterSpacing: secretKey && !showPassword ? '2px' : 'normal', fontFamily: secretKey && !showPassword ? 'monospace' : 'inherit' }}
               />
               <button
                 type="button"
@@ -67,7 +80,8 @@ export const SecretKeyPage: React.FC<SecretKeyPageProps> = ({ onSuccess }) => {
                   background: 'none',
                   border: 'none',
                   color: '#64748B',
-                  cursor: 'pointer'
+                  cursor: 'pointer',
+                  padding: '4px'
                 }}
               >
                 {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
@@ -83,21 +97,21 @@ export const SecretKeyPage: React.FC<SecretKeyPageProps> = ({ onSuccess }) => {
 
           <button
             type="submit"
-            className="btn-primary"
-            style={{ width: '100%', padding: '12px', fontSize: '15px' }}
+            className="auth-btn"
             disabled={loading}
           >
-            <span>{loading ? 'Authenticating...' : 'Continue'}</span>
-            <ArrowRight size={18} />
+            {loading ? 'Authenticating...' : 'Continue'}
           </button>
         </form>
 
-        <div className="auth-info-alert">
-          <div style={{ display: 'flex', alignItems: 'center', gap: '6px', fontWeight: 700, marginBottom: '4px' }}>
-            <Info size={14} /> About Secret Key
+        <div className="auth-alert">
+          <div className="auth-alert-title">
+            <Info size={16} fill="currentColor" color="white" /> About Secret Key
           </div>
-          <div>You must have a valid secret key to access RosoTravel AI POC application. Default Key: <strong>9090</strong></div>
+          <div className="auth-alert-desc">You must have a valid secret key to access RosoTravel AI POC application.</div>
         </div>
+
+        <div className="auth-skyline"></div>
       </div>
     </div>
   );
