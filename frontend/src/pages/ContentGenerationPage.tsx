@@ -112,7 +112,7 @@ export const ContentGenerationPage: React.FC = () => {
   const [verificationAttempt, setVerificationAttempt] = useState<number>(1);
 
   useEffect(() => {
-    fetch('/backend/data/paris.json')
+    fetch('/paris.json')
       .then((res) => res.json())
       .then((data) => {
         setInputJson(data);
