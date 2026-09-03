@@ -6,11 +6,19 @@ import { ContentGenerationPage } from './pages/ContentGenerationPage';
 import { HistoryPage } from './pages/HistoryPage';
 import { ModelComparisonPage } from './pages/ModelComparisonPage';
 import { SettingsPage } from './pages/SettingsPage';
+import { SecretKeyPage } from './pages/SecretKeyPage';
 import { RunDetailDrawer } from './components/RunDetailDrawer';
 
 export function App() {
+  const [isAuthenticated, setIsAuthenticated] = useState<boolean>(() => {
+    return !!localStorage.getItem('roso_session_token');
+  });
   const [activeTab, setActiveTab] = useState<string>('dashboard');
   const [activeRunDetailId, setActiveRunDetailId] = useState<string | null>(null);
+
+  if (!isAuthenticated) {
+    return <SecretKeyPage onSuccess={() => setIsAuthenticated(true)} />;
+  }
 
   const pageTitles: Record<string, string> = {
     dashboard: 'Dashboard Overview',
