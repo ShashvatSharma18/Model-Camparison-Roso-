@@ -158,7 +158,9 @@ export const ContentGenerationPage: React.FC = () => {
       JSON.stringify(inputJson, null, 2)
     ];
 
-    if (selectedLanguage) promptParts.push(`Target Language: ${selectedLanguage}`);
+    if (selectedLanguage) {
+      promptParts.push(`CRITICAL LANGUAGE MANDATE:\nYou MUST write and translate ALL output text strictly into ${selectedLanguage}. Do NOT write in English.`);
+    }
     if (selectedTone) promptParts.push(`Tone: ${selectedTone}`);
     if (selectedAudience) promptParts.push(`Audience Variant: ${selectedAudience}`);
     if (contentLengthStr) promptParts.push(`Character Length: ${contentLengthStr} characters`);

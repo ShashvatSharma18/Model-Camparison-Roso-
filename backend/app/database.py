@@ -68,22 +68,38 @@ def update_settings(new_settings: Dict[str, Any]) -> Dict[str, Any]:
     return updated
 
 def find_matching_test_run(country: str, city: str, language: str, input_json: Dict[str, Any], prompt_config: Dict[str, Any]) -> Optional[str]:
-    """Finds an existing matching test_run_id for the given location & input."""
+    """Finds an existing matching test_run_id for the given location & prompt config."""
+    # Helper to check if pc matches
+    def pc_matches(pc_id: str) -> bool:
+        pc = next((p for p in _in_memory_db["prompt_configs"] if p.get("test_run_id") == pc_id), None)
+        if not pc: return False
+        return (pc.get("tone") == prompt_config.get("tone") and
+                pc.get("audience") == prompt_config.get("audience") and
+                pc.get("content_length") == prompt_config.get("content_length"))
+
     for tr in reversed(_in_memory_db["test_runs"]):
         if (tr.get("country", "").lower() == country.lower() and
             tr.get("city", "").lower() == city.lower() and
-            tr.get("language", "").lower() == language.lower()):
+            tr.get("language", "").lower() == language.lower() and
+            pc_matches(tr["id"])):
             return tr["id"]
 
     if supabase_client:
         try:
-            res = supabase_client.table("test_runs").select("*").order("created_at", desc=True).limit(10).execute()
+            res = supabase_client.table("test_runs").select("*, prompt_configs(*)").order("created_at", desc=True).limit(10).execute()
             if res.data:
                 for tr in res.data:
                     if (tr.get("country", "").lower() == country.lower() and
                         tr.get("city", "").lower() == city.lower() and
                         tr.get("language", "").lower() == language.lower()):
-                        return tr["id"]
+                        
+                        pcs = tr.get("prompt_configs", [])
+                        if pcs and len(pcs) > 0:
+                            pc = pcs[0]
+                            if (pc.get("tone") == prompt_config.get("tone", "") and
+                                pc.get("audience") == prompt_config.get("audience", "") and
+                                pc.get("content_length") == prompt_config.get("content_length", 200)):
+                                return tr["id"]
         except Exception as e:
             print(f"Supabase search test run error: {e}")
 
@@ -184,7 +200,6 @@ def save_verification_results(generation_id: str, verification_attempt: int, res
         rec = {
             "id": str(uuid.uuid4()),
             "generation_id": generation_id,
-            "verification_attempt": verification_attempt,
             "parameter": r["parameter"],
             "status": r["status"],
             "reason": r.get("reason", ""),

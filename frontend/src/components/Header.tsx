@@ -18,6 +18,16 @@ export const Header: React.FC<HeaderProps> = ({ title, onReset }) => {
               <span>Reset All</span>
             </button>
           )}
+          <button 
+            className="btn-secondary" 
+            onClick={() => {
+              sessionStorage.removeItem('roso_session_token');
+              window.location.reload();
+            }} 
+            style={{ display: 'flex', alignItems: 'center', gap: '6px', color: '#DC2626', borderColor: '#FECACA', backgroundColor: '#FEF2F2' }}
+          >
+            <span>Logout</span>
+          </button>
         </div>
       </div>
     </header>

@@ -2,8 +2,7 @@ import json
 import time
 import requests
 from typing import Dict, Any, List, Tuple
-from app.config import OPENROUTER_API_KEY, OPENROUTER_BASE_URL
-
+from app.config import OPENROUTER_BASE_URL
 FALLBACK_MODELS = [
     { "id": "openai/gpt-4o", "name": "GPT-4o (OpenAI)", "context_length": 128000, "pricing": { "prompt": "0.0000025", "completion": "0.00001" } },
     { "id": "openai/gpt-4o-mini", "name": "GPT-4o Mini (OpenAI)", "context_length": 128000, "pricing": { "prompt": "0.00000015", "completion": "0.0000006" } },
@@ -25,12 +24,12 @@ FALLBACK_MODELS = [
     { "id": "perplexity/sonar-reasoning", "name": "Sonar Reasoning (Perplexity)", "context_length": 127000, "pricing": { "prompt": "0.000001", "completion": "0.000005" } }
 ]
 
-def fetch_openrouter_models() -> List[Dict[str, Any]]:
-    if not OPENROUTER_API_KEY:
+def fetch_openrouter_models(api_key: str) -> List[Dict[str, Any]]:
+    if not api_key:
         return FALLBACK_MODELS
     
     headers = {
-        "Authorization": f"Bearer {OPENROUTER_API_KEY}",
+        "Authorization": f"Bearer {api_key}",
         "HTTP-Referer": "https://rosotravel.com",
         "X-Title": "RosoTravel AI POC"
     }
@@ -216,13 +215,13 @@ def _create_mock_content(model_id: str, prompt: str) -> Dict[str, Any]:
 
     return data
 
-def generate_completion(model_id: str, prompt: str, system_prompt: str = "You are a professional travel content writer for RosoTravel. Return strictly valid JSON.") -> Tuple[bool, Dict[str, Any], int, int, int, int, float]:
-    if not OPENROUTER_API_KEY:
+def generate_completion(model_id: str, prompt: str, api_key: str, system_prompt: str = "You are a professional travel content writer for RosoTravel. Return strictly valid JSON.") -> Tuple[bool, Dict[str, Any], int, int, int, int, float]:
+    if not api_key:
         mock_data = _create_mock_content(model_id, prompt)
         return True, mock_data, 1800, 850, 2650, 1420, 0.008
 
     headers = {
-        "Authorization": f"Bearer {OPENROUTER_API_KEY}",
+        "Authorization": f"Bearer {api_key}",
         "Content-Type": "application/json",
         "HTTP-Referer": "https://rosotravel.com",
         "X-Title": "RosoTravel AI POC"
@@ -235,7 +234,7 @@ def generate_completion(model_id: str, prompt: str, system_prompt: str = "You ar
             {"role": "user", "content": prompt}
         ],
         "temperature": 0.7,
-        "max_tokens": 2500,
+        "max_tokens": 4000,
         "response_format": {"type": "json_object"}
     }
 
@@ -255,18 +254,22 @@ def generate_completion(model_id: str, prompt: str, system_prompt: str = "You ar
             content = choices[0]["message"]["content"] if choices else ""
             valid, parsed_json = validate_and_parse_json(content)
 
-            models_list = fetch_openrouter_models()
+            models_list = fetch_openrouter_models(api_key=api_key)
             cost = calculate_completion_cost(model_id, input_tokens, output_tokens, models_list)
 
             if valid:
                 return True, parsed_json, input_tokens, output_tokens, total_tokens, latency_ms, cost
+            else:
+                return False, {"error": "Model generated invalid or incomplete JSON. This often happens if the model is not good at following JSON formats or if it reached the maximum token limit."}, input_tokens, output_tokens, total_tokens, latency_ms, cost
         elif response.status_code == 402:
             print(f"OpenRouter 402 Credit Limit reached for model {model_id}. Cannot generate content.")
+            return False, {"error": "API Credit Limit Reached (402)."}, 0, 0, 0, latency_ms, 0.0
         else:
             print(f"OpenRouter generation HTTP error {response.status_code}: {response.text}")
+            return False, {"error": f"OpenRouter API Error: {response.status_code}"}, 0, 0, 0, latency_ms, 0.0
     except Exception as e:
-        latency_ms = int((time.time() - start_time) * 1000)
+        latency_ms = int((time.time() - start_time) * 1000) if 'start_time' in locals() else 0
         print(f"OpenRouter completion exception: {e}")
+        return False, {"error": str(e)}, 0, 0, 0, latency_ms, 0.0
 
-    mock_data = _create_mock_content(model_id, prompt)
-    return True, mock_data, 1800, 800, 2600, latency_ms if 'latency_ms' in locals() else 1500, 0.006
+    return False, {"error": "Unknown generation failure"}, 0, 0, 0, 0, 0.0

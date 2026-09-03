@@ -1,7 +1,7 @@
 import json
 import uuid
 from typing import Dict, Any, List, Optional
-from fastapi import FastAPI, HTTPException, Header
+from fastapi import FastAPI, HTTPException, Header, Depends
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 
@@ -24,10 +24,9 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-_active_session_tokens = set()
 
 class AuthVerifyRequest(BaseModel):
-    secret_key: str
+    api_key: str
 
 class ContentGenerateRequest(BaseModel):
     country: str = "France"
@@ -64,25 +63,33 @@ def verify_session_token(authorization: Optional[str] = Header(None)):
     if not authorization or not authorization.startswith("Bearer "):
         raise HTTPException(status_code=401, detail="Unauthorized session token required.")
     token = authorization.split(" ")[1]
-    if token not in _active_session_tokens and token != POC_SECRET_KEY:
-        raise HTTPException(status_code=401, detail="Invalid session token.")
+    if not token.startswith("sk-or-v1-"):
+        raise HTTPException(status_code=401, detail="Invalid OpenRouter API Key in session.")
     return token
 
 @app.post("/api/auth/verify")
 def auth_verify(payload: AuthVerifyRequest):
-    if payload.secret_key.strip() == POC_SECRET_KEY:
-        token = f"session-{uuid.uuid4()}"
-        _active_session_tokens.add(token)
-        return {
-            "success": True,
-            "message": "Authentication successful.",
-            "token": token
-        }
-    raise HTTPException(status_code=401, detail="Invalid secret key. Please try again.")
+    key = payload.api_key.strip()
+    if not key.startswith("sk-or-v1-"):
+        raise HTTPException(status_code=401, detail="Invalid OpenRouter API key format.")
+    
+    headers = {"Authorization": f"Bearer {key}"}
+    try:
+        import requests
+        resp = requests.get("https://openrouter.ai/api/v1/auth/key", headers=headers, timeout=10)
+        if resp.status_code == 200:
+            return {
+                "success": True,
+                "message": "Authentication successful.",
+                "token": key
+            }
+    except Exception:
+        pass
+    raise HTTPException(status_code=401, detail="Invalid OpenRouter API key. Please check your key and try again.")
 
 @app.get("/api/models")
-def get_models():
-    return fetch_openrouter_models()
+def get_models(token: str = Depends(verify_session_token)):
+    return fetch_openrouter_models(api_key=token)
 
 @app.get("/api/settings")
 def get_app_settings_route():
@@ -118,7 +125,7 @@ def get_test_run_used_models(test_run_id: str):
     return get_used_models_for_test_run(test_run_id)
 
 @app.post("/api/content/generate")
-def generate_content_endpoint(payload: ContentGenerateRequest):
+def generate_content_endpoint(payload: ContentGenerateRequest, token: str = Depends(verify_session_token)):
     if not payload.model_id:
         raise HTTPException(status_code=400, detail="Please select an OpenRouter model before generating content.")
 
@@ -169,7 +176,7 @@ Output valid JSON only matching keys: title, introduction, attractions, activiti
         prompt_parts = [
             f"Create travel guide content for {payload.city}, {payload.country} using the provided JSON data:",
             json.dumps(payload.input_json, indent=2),
-            f"TARGET LANGUAGE: Write all output text values strictly in {target_lang}.",
+            f"CRITICAL LANGUAGE MANDATE:\nYou MUST write and translate ALL output text strictly into {target_lang}. Do NOT write in English.",
             f"TARGET WORD COUNT: Provide rich details to reach approx {target_len} words."
         ]
         if payload.tone:
@@ -198,22 +205,24 @@ Return strictly valid JSON matching this structure:
     else:
         compiled_prompt = payload.final_prompt
 
-    models = fetch_openrouter_models()
+    models = fetch_openrouter_models(api_key=token)
     selected_model_name = next((m["name"] for m in models if m["id"] == payload.model_id), payload.model_id)
 
     gen_success, output_json, in_t, out_t, tot_t, lat_ms, cost = generate_completion(
         model_id=payload.model_id,
         prompt=compiled_prompt,
+        api_key=token,
         system_prompt=system_prompt
     )
 
     if not gen_success or not output_json:
-        gen_id = save_generation(
+        error_msg = output_json.get("error", "Failed to generate valid content JSON.") if isinstance(output_json, dict) else "Content generation failed."
+        save_generation(
             test_run_id=test_run_id,
             model_id=payload.model_id,
             model_name=selected_model_name,
             attempt_number=1,
-            output_json={"error": "Failed to generate valid content JSON."},
+            output_json={"error": error_msg},
             status="Failed",
             input_tokens=in_t,
             output_tokens=out_t,
@@ -221,14 +230,7 @@ Return strictly valid JSON matching this structure:
             latency_ms=lat_ms,
             cost=cost
         )
-        return {
-            "success": False,
-            "generation_id": gen_id,
-            "test_run_id": test_run_id,
-            "status": "Failed",
-            "message": "Generation failed or returned invalid JSON structure.",
-            "output_json": {"error": "Generation failed or returned invalid JSON structure."}
-        }
+        raise HTTPException(status_code=500, detail=error_msg)
 
     gen_id = save_generation(
         test_run_id=test_run_id,
@@ -260,7 +262,7 @@ Return strictly valid JSON matching this structure:
     }
 
 @app.post("/api/content/verify")
-def verify_content_endpoint(payload: ContentVerifyRequest):
+def verify_content_endpoint(payload: ContentVerifyRequest, token: str = Depends(verify_session_token)):
     run_detail = get_run_details(payload.generation_id)
     if not run_detail:
         raise HTTPException(status_code=404, detail="Generation run not found.")
@@ -274,6 +276,7 @@ def verify_content_endpoint(payload: ContentVerifyRequest):
     results = verify_all_parameters(
         content_json=gen["output_json"],
         prompt_config=prompt_config,
+        api_key=token,
         verifier_model_id=verifier_model_id
     )
 
@@ -298,7 +301,7 @@ def verify_content_endpoint(payload: ContentVerifyRequest):
     }
 
 @app.post("/api/content/regenerate")
-def regenerate_content_endpoint(payload: ContentRegenerateRequest):
+def regenerate_content_endpoint(payload: ContentRegenerateRequest, token: str = Depends(verify_session_token)):
     run_detail = get_run_details(payload.generation_id)
     if not run_detail:
         raise HTTPException(status_code=404, detail="Generation run not found.")
@@ -328,7 +331,8 @@ def regenerate_content_endpoint(payload: ContentRegenerateRequest):
             model_id=gen["model_id"],
             current_json=gen["output_json"],
             prompt_config=prompt_config,
-            failed_results=failed_results
+            failed_results=failed_results,
+            api_key=token
         )
     except RuntimeError as e:
         raise HTTPException(status_code=500, detail=str(e))
@@ -349,6 +353,7 @@ def regenerate_content_endpoint(payload: ContentRegenerateRequest):
     new_ver_results = verify_all_parameters(
         content_json=new_output,
         prompt_config=prompt_config,
+        api_key=token,
         verifier_model_id=verifier_model_id
     )
 

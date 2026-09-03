@@ -57,6 +57,7 @@ def check_banned_keywords(content_json: Dict[str, Any], banned_keywords: List[st
 def verify_parameters_llm(
     verifier_model_id: str,
     content_json: Dict[str, Any],
+    api_key: str,
     tone: str = "",
     audience: str = "",
     style_guide: str = ""
@@ -140,6 +141,7 @@ Return JSON output with this schema:
     success, result_json, *rest = generate_completion(
         model_id=verifier_model_id,
         prompt=verifier_prompt,
+        api_key=api_key,
         system_prompt="You are a fair, objective AI Verifier. Output valid JSON only."
     )
 
@@ -174,7 +176,7 @@ Return JSON output with this schema:
             final_list.append({"parameter": param_name, "status": "PASS", "reason": "Verified.", "affected_fields": []})
     return final_list
 
-def verify_all_parameters(content_json: Dict[str, Any], prompt_config: Dict[str, Any], verifier_model_id: str = "openai/gpt-4o") -> List[Dict[str, Any]]:
+def verify_all_parameters(content_json: Dict[str, Any], prompt_config: Dict[str, Any], api_key: str, verifier_model_id: str = "openai/gpt-4o") -> List[Dict[str, Any]]:
     """Performs full parameter verification (2 code checks + 3 LLM checks)."""
     settings = get_settings()
     results = []
@@ -204,6 +206,7 @@ def verify_all_parameters(content_json: Dict[str, Any], prompt_config: Dict[str,
     llm_evals = verify_parameters_llm(
         verifier_model_id=verifier_model_id,
         content_json=content_json,
+        api_key=api_key,
         tone=prompt_config.get("tone", ""),
         audience=prompt_config.get("audience", ""),
         style_guide=prompt_config.get("style_guide", "")
@@ -228,7 +231,7 @@ def verify_all_parameters(content_json: Dict[str, Any], prompt_config: Dict[str,
 
     return results
 
-def targeted_regeneration(model_id: str, current_json: Dict[str, Any], prompt_config: Dict[str, Any], failed_results: List[Dict[str, Any]]) -> Tuple[Dict[str, Any], int, int, int, int, float]:
+def targeted_regeneration(model_id: str, current_json: Dict[str, Any], prompt_config: Dict[str, Any], failed_results: List[Dict[str, Any]], api_key: str) -> Tuple[Dict[str, Any], int, int, int, int, float]:
     """Executes targeted regeneration to fix failed parameters."""
     target_chars = int(prompt_config.get("content_length", 200) or 200)
     language = prompt_config.get("language", "English")
@@ -266,6 +269,7 @@ CRITICAL INSTRUCTIONS:
     success, result_json, p_tokens, c_tokens, t_tokens, latency_ms, cost = generate_completion(
         model_id=model_id,
         prompt=regen_prompt,
+        api_key=api_key,
         system_prompt=f"You are a travel content writer. Output valid JSON only. Write all text strictly in {language}."
     )
 

@@ -1,24 +1,23 @@
 import type { ModelInfo, AppSettings, HistoryRun, RunDetailsPayload } from '../types';
 
-const API_BASE_URL = 'http://localhost:8000/api';
-
+const API_BASE_URL = '/api';
 function getAuthHeader() {
-  const token = localStorage.getItem('roso_session_token') || '9090';
+  const token = sessionStorage.getItem('roso_session_token') || '9090';
   return {
     'Authorization': `Bearer ${token}`,
     'Content-Type': 'application/json'
   };
 }
 
-export async function verifyAuth(secretKey: string): Promise<{ success: boolean; token: string }> {
+export async function verifyAuth(apiKey: string): Promise<{ success: boolean; token: string }> {
   const res = await fetch(`${API_BASE_URL}/auth/verify`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ secret_key: secretKey })
+    body: JSON.stringify({ api_key: apiKey })
   });
   if (!res.ok) {
     const err = await res.json();
-    throw new Error(err.detail || 'Invalid secret key');
+    throw new Error(err.detail || 'Invalid API key');
   }
   return res.json();
 }
