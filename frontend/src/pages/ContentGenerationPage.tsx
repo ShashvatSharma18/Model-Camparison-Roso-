@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { fetchModels, generateContent, verifyContent, regenerateContent, fetchTestRunUsedModels } from '../services/api';
 import type { ModelInfo, VerificationResult } from '../types';
 import { VerificationLogsModal } from '../components/VerificationLogsModal';
-import { Sparkles, Upload, Trash2, AlertTriangle, CheckCircle, FileText, RefreshCw, Clock, Cpu, DollarSign, Globe, Database, Sliders, Code2, Bot, FileCheck, ShieldCheck } from 'lucide-react';
+import { Sparkles, Upload, Trash2, AlertTriangle, CheckCircle, FileText, RefreshCw, Clock, Cpu, DollarSign, Globe, Database, Sliders, Code2, Bot, FileCheck, ShieldCheck, FileX } from 'lucide-react';
 
 const ensureArray = (data: any) => {
   if (!data) return [];
@@ -31,7 +31,7 @@ const PREDEFINED_AUDIENCES = [
 
 const SUGGESTED_TONES = ['Friendly', 'Professional', 'Inspirational', 'Informative', 'Casual'];
 const SUGGESTED_KEYWORDS = ['perfect', 'amazing', 'best', 'must-visit'];
-const PREDEFINED_LANGUAGES = ['English', 'Hindi', 'Japanese', 'German', 'French', 'Spanish', 'Italian', 'Chinese'];
+const PREDEFINED_LANGUAGES = ['English', 'Spanish', 'French', 'German', 'Italian', 'Portuguese', 'Dutch', 'Russian', 'Polish', 'Swedish', 'Danish', 'Finnish', 'Greek', 'Czech', 'Romanian', 'Hungarian'];
 
 const FULL_OPENROUTER_MODELS: ModelInfo[] = [
   { id: "openai/gpt-4o", name: "GPT-4o (OpenAI)", context_length: 128000, pricing: { prompt: "0.0000025", completion: "0.00001" } },
@@ -64,16 +64,13 @@ export const ContentGenerationPage: React.FC = () => {
   const [jsonText, setJsonText] = useState('');
 
   // 3. Language (Default: Blank)
-  const [selectedLanguage, setSelectedLanguage] = useState<string>('');
-  const [customLanguage, setCustomLanguage] = useState('');
-  const [availableLanguages, setAvailableLanguages] = useState<string[]>(PREDEFINED_LANGUAGES);
+  const [selectedLanguage, setSelectedLanguage] = useState<string>('English');
 
   // 4. Prompt Configuration (Default: All Blank)
   const [selectedTone, setSelectedTone] = useState<string>('');
   const [customTone, setCustomTone] = useState('');
 
   const [selectedAudience, setSelectedAudience] = useState<string>('');
-  const [customAudience, setCustomAudience] = useState('');
 
   // Content Length String State (starts blank "", placeholder "e.g. 200")
   const [contentLengthStr, setContentLengthStr] = useState<string>('');
@@ -164,7 +161,7 @@ export const ContentGenerationPage: React.FC = () => {
     if (selectedLanguage) promptParts.push(`Target Language: ${selectedLanguage}`);
     if (selectedTone) promptParts.push(`Tone: ${selectedTone}`);
     if (selectedAudience) promptParts.push(`Audience Variant: ${selectedAudience}`);
-    if (contentLengthStr) promptParts.push(`Content Length: ${contentLengthStr} words`);
+    if (contentLengthStr) promptParts.push(`Character Length: ${contentLengthStr} characters`);
     if (selectedBannedKeywords.length > 0) {
       promptParts.push(`Banned Keywords / Phrases:\n${selectedBannedKeywords.map((kw) => '- ' + kw).join('\n')}`);
     }
@@ -176,25 +173,10 @@ export const ContentGenerationPage: React.FC = () => {
     selectedAudience, contentLengthStr, selectedBannedKeywords, styleGuide
   ]);
 
-  const handleAddLanguage = () => {
-    if (customLanguage.trim() && !availableLanguages.includes(customLanguage.trim())) {
-      setAvailableLanguages([...availableLanguages, customLanguage.trim()]);
-      setSelectedLanguage(customLanguage.trim());
-      setCustomLanguage('');
-    }
-  };
-
   const handleAddTone = () => {
     if (customTone.trim()) {
       setSelectedTone(customTone.trim());
       setCustomTone('');
-    }
-  };
-
-  const handleAddAudience = () => {
-    if (customAudience.trim()) {
-      setSelectedAudience(customAudience.trim());
-      setCustomAudience('');
     }
   };
 
@@ -239,8 +221,16 @@ export const ContentGenerationPage: React.FC = () => {
     }
   };
 
-  // 1. GENERATE CONTENT ACTION (Generates + AUTO-VERIFIES immediately for direct result!)
   const handleGenerate = async () => {
+    // Check if the user has provided ANY inputs (JSON data or any prompt configuration)
+    const hasData = inputJson !== null && Object.keys(inputJson).length > 0;
+    const hasConfig = selectedTone || selectedAudience || contentLengthStr || selectedBannedKeywords.length > 0 || styleGuide.trim();
+
+    if (!hasData && !hasConfig) {
+      alert("Please provide some Input Data (JSON) OR select at least one Prompt Configuration before generating content.");
+      return;
+    }
+
     if (!selectedModel) {
       alert('Please select an OpenRouter model from the dropdown.');
       return;
@@ -252,7 +242,7 @@ export const ContentGenerationPage: React.FC = () => {
     setExecutionMetrics(null);
 
     try {
-      const targetLen = contentLengthStr ? parseInt(contentLengthStr, 10) : 200;
+      const targetLen = contentLengthStr ? parseInt(contentLengthStr, 10) : 2000;
       const res = await generateContent({
         country,
         city,
@@ -273,15 +263,16 @@ export const ContentGenerationPage: React.FC = () => {
       setExecutionMetrics(res.metrics || null);
       setUsedModelIds([...usedModelIds, selectedModel]);
 
-      // AUTO-RUN VERIFICATION IMMEDIATELY for direct result!
-      try {
-        const verRes = await verifyContent(res.generation_id);
-        setVerificationResults(verRes.verification_results || []);
-        setGenerationStatus(verRes.status || 'Verified');
-        setVerifierModelId(verRes.verifier_model_id || 'openai/gpt-4o');
-        setVerificationAttempt(verRes.verification_attempt || 1);
-      } catch (verErr) {
-        console.error("Auto-verification error:", verErr);
+      if (res.success) {
+        try {
+          const verRes = await verifyContent(res.generation_id);
+          setVerificationResults(verRes.verification_results || []);
+          setGenerationStatus(verRes.status || 'Verified');
+          setVerifierModelId(verRes.verifier_model_id || 'openai/gpt-4o');
+          setVerificationAttempt(verRes.verification_attempt || 1);
+        } catch (verErr) {
+          console.error("Auto-verification error:", verErr);
+        }
       }
     } catch (err: any) {
       alert(err.message || 'Generation failed.');
@@ -290,7 +281,6 @@ export const ContentGenerationPage: React.FC = () => {
     }
   };
 
-  // 2. REGENERATE FAILED PARAMETERS ACTION (Manual Targeted Regeneration)
   const handleRegenerateFailed = async () => {
     if (!generationId) return;
     setRegenerating(true);
@@ -312,9 +302,7 @@ export const ContentGenerationPage: React.FC = () => {
   return (
     <div className="workspace-container">
       <div className="two-column-workspace">
-        {/* LEFT COLUMN: Input Setup & Prompt Configuration */}
         <div>
-          {/* STEP 1: LOCATION & LANGUAGE */}
           <div className="card">
             <div className="card-header-badge">
               <div className="step-number">1</div>
@@ -340,26 +328,14 @@ export const ContentGenerationPage: React.FC = () => {
                 <label className="form-label">Target Language</label>
                 <select className="select-input" value={selectedLanguage} onChange={(e) => setSelectedLanguage(e.target.value)}>
                   <option value="">Select Language...</option>
-                  {availableLanguages.map((lang) => (
+                  {PREDEFINED_LANGUAGES.map((lang) => (
                     <option key={lang} value={lang}>{lang}</option>
                   ))}
                 </select>
               </div>
             </div>
-
-            <div className="inline-add">
-              <input
-                type="text"
-                className="input-text"
-                placeholder="+ Add Custom Language (e.g. Japanese)"
-                value={customLanguage}
-                onChange={(e) => setCustomLanguage(e.target.value)}
-              />
-              <button className="btn-secondary" onClick={handleAddLanguage}>+ Add</button>
-            </div>
           </div>
 
-          {/* STEP 2: TEST DATA */}
           <div className="card">
             <div className="card-header-badge" style={{ justifyContent: 'space-between' }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
@@ -382,7 +358,6 @@ export const ContentGenerationPage: React.FC = () => {
             />
           </div>
 
-          {/* STEP 3: PROMPT CONFIGURATION */}
           <div className="card">
             <div className="card-header-badge">
               <div className="step-number">3</div>
@@ -391,7 +366,6 @@ export const ContentGenerationPage: React.FC = () => {
               </div>
             </div>
 
-            {/* Tone */}
             <div className="form-group">
               <label className="form-label">Tone (Default: Select Tone)</label>
               <div className="pill-grid">
@@ -411,7 +385,6 @@ export const ContentGenerationPage: React.FC = () => {
               </div>
             </div>
 
-            {/* Audience Variant */}
             <div className="form-group">
               <label className="form-label">Audience Variant (Default: Select Audience Variant)</label>
               <div className="pill-grid">
@@ -425,32 +398,26 @@ export const ContentGenerationPage: React.FC = () => {
                   </button>
                 ))}
               </div>
-              <div className="inline-add">
-                <input type="text" className="input-text" placeholder="+ Custom Audience" value={customAudience} onChange={(e) => setCustomAudience(e.target.value)} />
-                <button className="btn-secondary" onClick={handleAddAudience}>Add</button>
-              </div>
             </div>
 
-            {/* Content Length (Clean String State with 'e.g. 200' placeholder) */}
             <div className="form-group">
-              <label className="form-label">Content Length (Target Word Count)</label>
+              <label className="form-label">Character Length</label>
               <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
                 <input
                   type="text"
                   className="input-text"
                   style={{ width: '180px' }}
-                  placeholder="e.g. 200"
+                  placeholder="e.g. 2000"
                   value={contentLengthStr}
                   onChange={(e) => {
                     const cleaned = e.target.value.replace(/[^0-9]/g, '');
                     setContentLengthStr(cleaned);
                   }}
                 />
-                <span style={{ fontSize: '13px', fontWeight: 700, color: '#64748B' }}>words</span>
+                <span style={{ fontSize: '13px', fontWeight: 700, color: '#64748B' }}>characters</span>
               </div>
             </div>
 
-            {/* Banned Keywords */}
             <div className="form-group">
               <label className="form-label">Banned Keywords / Phrases (Default: None selected)</label>
               <div className="pill-grid">
@@ -474,14 +441,12 @@ export const ContentGenerationPage: React.FC = () => {
               </div>
             </div>
 
-            {/* Style Guide */}
             <div className="form-group" style={{ margin: 0 }}>
               <label className="form-label">Style Guide</label>
               <textarea className="textarea-input" rows={3} placeholder="Write or paste your style guide here..." value={styleGuide} onChange={(e) => setStyleGuide(e.target.value)} />
             </div>
           </div>
 
-          {/* STEP 4: LIVE PROMPT COMPILER */}
           <div className="card">
             <div className="card-header-badge" style={{ justifyContent: 'space-between' }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
@@ -579,16 +544,23 @@ export const ContentGenerationPage: React.FC = () => {
 
               {outputTab === 'formatted' ? (
                 <div style={{ padding: '16px', backgroundColor: '#F8FAFC', borderRadius: '8px', border: '1px solid #E2E8F0', maxHeight: '420px', overflowY: 'auto' }}>
-                  <h3 style={{ fontSize: '18px', fontWeight: 800, marginBottom: '8px', color: '#0F172A' }}>
-                    {generationOutput.title || 'Paris Travel Guide'}
-                  </h3>
+                  {generationOutput.error ? (
+                    <div style={{ color: '#DC2626', fontWeight: 600, padding: '16px', backgroundColor: '#FEE2E2', borderRadius: '8px', border: '1px solid #FCA5A5' }}>
+                      <FileX size={24} style={{ marginBottom: '8px' }} />
+                      <p>{generationOutput.error}</p>
+                    </div>
+                  ) : (
+                    <>
+                      <h3 style={{ fontSize: '18px', fontWeight: 800, marginBottom: '8px', color: '#0F172A' }}>
+                        {generationOutput.title || 'Paris Travel Guide'}
+                      </h3>
 
-                  <div style={{ marginBottom: '14px' }}>
-                    <strong style={{ fontSize: '11px', textTransform: 'uppercase', color: '#64748B', display: 'block', marginBottom: '4px' }}>Introduction</strong>
-                    <p style={{ fontSize: '13px', color: '#475569', lineHeight: '1.6' }}>
-                      {generationOutput.introduction}
-                    </p>
-                  </div>
+                      <div style={{ marginBottom: '14px' }}>
+                        <strong style={{ fontSize: '11px', textTransform: 'uppercase', color: '#64748B', display: 'block', marginBottom: '4px' }}>Introduction</strong>
+                        <p style={{ fontSize: '13px', color: '#475569', lineHeight: '1.6' }}>
+                          {generationOutput.introduction}
+                        </p>
+                      </div>
 
                   {generationOutput.attractions && (
                     <div style={{ marginBottom: '14px' }}>
@@ -640,16 +612,18 @@ export const ContentGenerationPage: React.FC = () => {
 
                   {generationOutput.faqs && (
                     <div>
-                      <strong style={{ fontSize: '11px', textTransform: 'uppercase', color: '#64748B', display: 'block', marginBottom: '4px' }}>FAQs</strong>
-                      <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                      <strong style={{ fontSize: '11px', textTransform: 'uppercase', color: '#64748B', display: 'block', marginBottom: '4px' }}>Frequently Asked Questions</strong>
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
                         {ensureArray(generationOutput.faqs).map((faq: any, i: number) => (
-                          <div key={i} style={{ backgroundColor: '#F8FAFC', padding: '8px 10px', borderRadius: '6px' }}>
-                            <strong style={{ fontSize: '12px', display: 'block', marginBottom: '2px' }}>Q: {faq.question || faq.title || faq.name}</strong>
-                            <span style={{ fontSize: '11px', color: '#475569' }}>A: {faq.answer || faq.description || faq.value}</span>
+                          <div key={i} style={{ backgroundColor: '#FFFFFF', padding: '10px', borderRadius: '6px', border: '1px solid #E2E8F0' }}>
+                            <strong style={{ fontSize: '12px', color: '#0F172A', display: 'block', marginBottom: '4px' }}>Q: {faq.question}</strong>
+                            <p style={{ fontSize: '12px', color: '#475569', margin: 0 }}>A: {faq.answer}</p>
                           </div>
                         ))}
                       </div>
                     </div>
+                  )}
+                    </>
                   )}
                 </div>
               ) : (

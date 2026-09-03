@@ -2,8 +2,20 @@ import uuid
 import datetime
 from typing import Dict, Any, List, Optional
 
-supabase_client = None
+import os
+from supabase import create_client, Client
 
+supabase_url = os.environ.get("SUPABASE_URL")
+supabase_key = os.environ.get("SUPABASE_SERVICE_ROLE_KEY")
+
+if supabase_url and supabase_key:
+    try:
+        supabase_client: Client = create_client(supabase_url, supabase_key)
+    except Exception as e:
+        print(f"Failed to initialize Supabase client (Invalid API key?): {e}")
+        supabase_client = None
+else:
+    supabase_client = None
 
 _in_memory_db = {
     "test_runs": [],

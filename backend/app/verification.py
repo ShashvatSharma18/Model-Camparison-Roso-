@@ -1,4 +1,5 @@
 import re
+import json
 from typing import Dict, Any, List, Tuple
 from app.database import get_settings
 from app.openrouter import generate_completion
@@ -16,25 +17,24 @@ def extract_all_text_values(data: Any) -> str:
         text_parts.append(data)
     return " ".join(text_parts)
 
-def count_words(text: str) -> int:
-    """Counts words in a text string."""
-    cleaned = re.sub(r'[^\w\s]', '', text)
-    return len(cleaned.split())
+def count_characters(text: str) -> int:
+    """Counts characters in a text string."""
+    return len(text.strip())
 
-def check_content_length(content_json: Dict[str, Any], target_words: int, tolerance_pct: float = 50.0) -> Tuple[str, int, int, int]:
+def check_content_length(content_json: Dict[str, Any], target_chars: int, tolerance_pct: float = 50.0) -> Tuple[str, int, int, int]:
     """
-    Checks if content word count is within specified target & tolerance percentage.
-    Default tolerance is 50% (e.g. 100-300 words for a 200 word target).
+    Checks if content character count is within specified target & tolerance percentage.
+    Default tolerance is 50%.
     """
     full_text = extract_all_text_values(content_json)
-    actual_words = count_words(full_text)
+    actual_chars = count_characters(full_text)
 
-    min_allowed = max(50, int(target_words * (1 - tolerance_pct / 100)))
-    max_allowed = int(target_words * (1 + tolerance_pct / 100))
+    min_allowed = max(50, int(target_chars * (1 - tolerance_pct / 100)))
+    max_allowed = int(target_chars * (1 + tolerance_pct / 100))
 
-    if min_allowed <= actual_words <= max_allowed:
-        return "PASS", actual_words, min_allowed, max_allowed
-    return "FAIL", actual_words, min_allowed, max_allowed
+    if min_allowed <= actual_chars <= max_allowed:
+        return "PASS", actual_chars, min_allowed, max_allowed
+    return "FAIL", actual_chars, min_allowed, max_allowed
 
 def check_banned_keywords(content_json: Dict[str, Any], banned_keywords: List[str]) -> Tuple[str, List[str]]:
     """Checks if any banned keywords exist in text values (ignoring JSON keys)."""
@@ -179,14 +179,14 @@ def verify_all_parameters(content_json: Dict[str, Any], prompt_config: Dict[str,
     settings = get_settings()
     results = []
 
-    # 1. Content Length Check (Code) - 50% Tolerance for fair LLM variance
-    target_words = int(prompt_config.get("content_length", 200) or 200)
+    # 1. Character Length Check (Code) - 50% Tolerance for fair LLM variance
+    target_chars = int(prompt_config.get("content_length", 200) or 200)
     tolerance = settings.get("content_length_tolerance_pct", 50)
-    len_status, actual_w, min_w, max_w = check_content_length(content_json, target_words, tolerance)
+    len_status, actual_c, min_c, max_c = check_content_length(content_json, target_chars, tolerance)
     results.append({
-        "parameter": "Content Length",
+        "parameter": "Character Length",
         "status": len_status if settings.get("verify_content_length", True) else "PASS",
-        "reason": f"Actual word count is {actual_w} words (Target: ~{target_words} words, Allowed: {min_w}-{max_w} words)." if len_status == "PASS" else f"Word count is {actual_w} words. Target is ~{target_words} words (Allowed range: {min_w}-{max_w} words).",
+        "reason": f"Actual character count is {actual_c} characters (Target: ~{target_chars} characters, Allowed: {min_c}-{max_c} characters)." if len_status == "PASS" else f"Character count is {actual_c} characters. Target is ~{target_chars} characters (Allowed range: {min_c}-{max_c} characters).",
         "affected_fields": ["introduction", "attractions", "activities"] if len_status == "FAIL" else []
     })
 
@@ -230,14 +230,14 @@ def verify_all_parameters(content_json: Dict[str, Any], prompt_config: Dict[str,
 
 def targeted_regeneration(model_id: str, current_json: Dict[str, Any], prompt_config: Dict[str, Any], failed_results: List[Dict[str, Any]]) -> Tuple[Dict[str, Any], int, int, int, int, float]:
     """Executes targeted regeneration to fix failed parameters."""
-    target_words = int(prompt_config.get("content_length", 200) or 200)
+    target_chars = int(prompt_config.get("content_length", 200) or 200)
     language = prompt_config.get("language", "English")
 
     fixes = []
     for f in failed_results:
         p = f.get("parameter")
-        if p == "Content Length":
-            fixes.append(f"- Strictly adjust overall word count to be as close to {target_words} words as possible.")
+        if p == "Character Length":
+            fixes.append(f"- Strictly adjust overall character count to be as close to {target_chars} characters as possible.")
         elif p == "Banned Keywords":
             banned = prompt_config.get("banned_keywords", [])
             fixes.append(f"- Strictly DO NOT use any of these banned words: {', '.join(banned)}.")
@@ -246,18 +246,21 @@ def targeted_regeneration(model_id: str, current_json: Dict[str, Any], prompt_co
         elif p == "Audience Variant":
             fixes.append(f"- Strictly adapt content for audience: {prompt_config.get('audience')}.")
 
-    regen_prompt = f"""Regenerate the travel JSON for {prompt_config.get('city')}, {prompt_config.get('country')} in language: {language}.
+    regen_prompt = f"""You are a travel content writer refining an existing JSON output for {prompt_config.get('city')}, {prompt_config.get('country')} in language: {language}.
+
+The following Current Output JSON has some errors that must be fixed. 
+However, it is CRITICAL that you KEEP the rest of the JSON EXACTLY the same. Do NOT rewrite or change any parts of the text that do not relate to the REQUIRED FIXES.
 
 Current Output JSON:
-{extract_all_text_values(current_json)[:1000]}
+{json.dumps(current_json, ensure_ascii=False, indent=2)}
 
-REQUIRED FIXES:
+REQUIRED FIXES (Apply ONLY these fixes):
 {chr(10).join(fixes)}
 
-CRITICAL LANGUAGE INSTRUCTION:
-Write all JSON string values strictly in {language}.
-
-Output valid JSON only with keys: title, introduction, attractions, activities, best_time_to_visit, travel_tips, faqs.
+CRITICAL INSTRUCTIONS:
+1. Preserve all other successful aspects of the current JSON (e.g., if the tone is already good, do not change it).
+2. Write all JSON string values strictly in {language}.
+3. Output valid JSON only with keys: title, introduction, attractions, activities, best_time_to_visit, travel_tips, faqs.
 """
 
     success, result_json, p_tokens, c_tokens, t_tokens, latency_ms, cost = generate_completion(
@@ -267,6 +270,6 @@ Output valid JSON only with keys: title, introduction, attractions, activities, 
     )
 
     if not success or not isinstance(result_json, dict):
-        result_json = current_json
+        raise RuntimeError(f"OpenRouter generation failed (Check API credits or model ID).")
 
     return result_json, p_tokens, c_tokens, t_tokens, cost

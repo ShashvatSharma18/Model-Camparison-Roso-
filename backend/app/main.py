@@ -36,7 +36,7 @@ class ContentGenerateRequest(BaseModel):
     input_json: Dict[str, Any]
     tone: Optional[str] = ""
     audience: Optional[str] = ""
-    content_length: int = 200
+    content_length: int = 2000
     banned_keywords: List[str] = []
     style_guide: Optional[str] = ""
     final_prompt: Optional[str] = ""
@@ -226,7 +226,8 @@ Return strictly valid JSON matching this structure:
             "generation_id": gen_id,
             "test_run_id": test_run_id,
             "status": "Failed",
-            "message": "Generation failed or returned invalid JSON structure."
+            "message": "Generation failed or returned invalid JSON structure.",
+            "output_json": {"error": "Generation failed or returned invalid JSON structure."}
         }
 
     gen_id = save_generation(
@@ -306,7 +307,13 @@ def regenerate_content_endpoint(payload: ContentRegenerateRequest):
     prompt_config = run_detail["prompt_config"]
     verification_results = run_detail["verification_results"]
 
-    failed_results = [r for r in verification_results if r["status"] == "FAIL"]
+    if verification_results:
+        max_attempt = max(r.get("verification_attempt", 1) for r in verification_results)
+        latest_results = [r for r in verification_results if r.get("verification_attempt", 1) == max_attempt]
+    else:
+        latest_results = []
+
+    failed_results = [r for r in latest_results if r["status"] == "FAIL"]
     if not failed_results:
         return {
             "success": True,
@@ -316,12 +323,15 @@ def regenerate_content_endpoint(payload: ContentRegenerateRequest):
             "verification_results": verification_results
         }
 
-    new_output, p_tok, c_tok, t_tok, cost = targeted_regeneration(
-        model_id=gen["model_id"],
-        current_json=gen["output_json"],
-        prompt_config=prompt_config,
-        failed_results=failed_results
-    )
+    try:
+        new_output, p_tok, c_tok, t_tok, cost = targeted_regeneration(
+            model_id=gen["model_id"],
+            current_json=gen["output_json"],
+            prompt_config=prompt_config,
+            failed_results=failed_results
+        )
+    except RuntimeError as e:
+        raise HTTPException(status_code=500, detail=str(e))
 
     new_attempt = gen.get("attempt_number", 1) + 1
 
