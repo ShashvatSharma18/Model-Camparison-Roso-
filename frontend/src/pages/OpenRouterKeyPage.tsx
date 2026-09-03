@@ -54,7 +54,7 @@ export const OpenRouterKeyPage: React.FC<OpenRouterKeyPageProps> = ({ onSuccess 
           </div>
         </div>
 
-        <h3 style={{ fontSize: '18px', fontWeight: 700, color: '#0F172A', marginBottom: '8px' }}>Welcome Back!</h3>
+        <h3 style={{ fontSize: '18px', fontWeight: 700, color: '#0F172A', marginBottom: '8px' }}>Welcome to RosoTravel AI!</h3>
         <p className="auth-subtitle">Please enter your OpenRouter API key to continue</p>
 
         <form onSubmit={handleSubmit} style={{ position: 'relative', zIndex: 2 }}>
