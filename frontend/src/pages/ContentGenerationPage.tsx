@@ -244,7 +244,7 @@ export const ContentGenerationPage: React.FC = () => {
     setExecutionMetrics(null);
 
     try {
-      const targetLen = contentLengthStr ? parseInt(contentLengthStr, 10) : 2000;
+      const targetLen = contentLengthStr ? parseInt(contentLengthStr, 10) : null;
       const res = await generateContent({
         country,
         city,

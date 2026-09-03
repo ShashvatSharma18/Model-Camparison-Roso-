@@ -110,11 +110,14 @@ export const ModelComparisonPage: React.FC = () => {
               onChange={(e) => setSelectedTestRunId(e.target.value)}
               style={{ fontSize: '12px', padding: '8px 12px' }}
             >
-              {historyRuns.filter((v,i,a)=>a.findIndex(v2=>(v2.test_run_id===v.test_run_id))===i).map((r) => (
-                <option key={r.run_id} value={r.test_run_id}>
-                  {r.city}, {r.country} ({r.language || 'English'})
-                </option>
-              ))}
+              {historyRuns.filter((v,i,a)=>a.findIndex(v2=>(v2.test_run_id===v.test_run_id))===i).map((r) => {
+                const dateStr = r.created_at ? new Date(r.created_at).toLocaleString() : 'Recent';
+                return (
+                  <option key={r.run_id} value={r.test_run_id}>
+                    {r.city}, {r.country} ({r.language || 'English'}) - {dateStr}
+                  </option>
+                );
+              })}
               {historyRuns.length === 0 && (
                 <option value="default">Paris, France (paris.json)</option>
               )}

@@ -182,15 +182,25 @@ def verify_all_parameters(content_json: Dict[str, Any], prompt_config: Dict[str,
     results = []
 
     # 1. Character Length Check (Code) - 50% Tolerance for fair LLM variance
-    target_chars = int(prompt_config.get("content_length", 200) or 200)
+    target_chars = prompt_config.get("content_length")
     tolerance = settings.get("content_length_tolerance_pct", 50)
-    len_status, actual_c, min_c, max_c = check_content_length(content_json, target_chars, tolerance)
-    results.append({
-        "parameter": "Character Length",
-        "status": len_status if settings.get("verify_content_length", True) else "PASS",
-        "reason": f"Actual character count is {actual_c} characters (Target: ~{target_chars} characters, Allowed: {min_c}-{max_c} characters)." if len_status == "PASS" else f"Character count is {actual_c} characters. Target is ~{target_chars} characters (Allowed range: {min_c}-{max_c} characters).",
-        "affected_fields": ["introduction", "attractions", "activities"] if len_status == "FAIL" else []
-    })
+    
+    if target_chars is not None:
+        target_chars = int(target_chars)
+        len_status, actual_c, min_c, max_c = check_content_length(content_json, target_chars, tolerance)
+        results.append({
+            "parameter": "Character Length",
+            "status": len_status if settings.get("verify_content_length", True) else "PASS",
+            "reason": f"Actual character count is {actual_c} characters (Target: ~{target_chars} characters, Allowed: {min_c}-{max_c} characters)." if len_status == "PASS" else f"Character count is {actual_c} characters. Target is ~{target_chars} characters (Allowed range: {min_c}-{max_c} characters).",
+            "affected_fields": ["introduction", "attractions", "activities"] if len_status == "FAIL" else []
+        })
+    else:
+        results.append({
+            "parameter": "Character Length",
+            "status": "PASS",
+            "reason": "Character length was not specified.",
+            "affected_fields": []
+        })
 
     # 2. Banned Keywords Check (Code)
     banned = prompt_config.get("banned_keywords", [])
@@ -233,13 +243,13 @@ def verify_all_parameters(content_json: Dict[str, Any], prompt_config: Dict[str,
 
 def targeted_regeneration(model_id: str, current_json: Dict[str, Any], prompt_config: Dict[str, Any], failed_results: List[Dict[str, Any]], api_key: str) -> Tuple[Dict[str, Any], int, int, int, int, float]:
     """Executes targeted regeneration to fix failed parameters."""
-    target_chars = int(prompt_config.get("content_length", 200) or 200)
+    target_chars = prompt_config.get("content_length")
     language = prompt_config.get("language", "English")
 
     fixes = []
     for f in failed_results:
         p = f.get("parameter")
-        if p == "Character Length":
+        if p == "Character Length" and target_chars is not None:
             fixes.append(f"- Strictly adjust overall character count to be as close to {target_chars} characters as possible.")
         elif p == "Banned Keywords":
             banned = prompt_config.get("banned_keywords", [])

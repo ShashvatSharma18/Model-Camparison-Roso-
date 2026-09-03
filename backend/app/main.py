@@ -35,7 +35,7 @@ class ContentGenerateRequest(BaseModel):
     input_json: Dict[str, Any]
     tone: Optional[str] = ""
     audience: Optional[str] = ""
-    content_length: int = 2000
+    content_length: Optional[int] = None
     banned_keywords: List[str] = []
     style_guide: Optional[str] = ""
     final_prompt: Optional[str] = ""
@@ -159,26 +159,28 @@ def generate_content_endpoint(payload: ContentGenerateRequest, token: str = Depe
         )
 
     target_lang = payload.language or "English"
-    target_len = payload.content_length or 200
+    target_len = payload.content_length
 
-    # Explicit Multilingual & Word Count System Prompt Mandate
+    # Explicit Multilingual System Prompt Mandate
     system_prompt = f"""You are a professional travel content writer for RosoTravel.
 CRITICAL LANGUAGE MANDATE:
-Write ALL text string values in the JSON output strictly in {target_lang}. (If language is Hindi, use Hindi Devanagari script).
+Write ALL text string values in the JSON output strictly in {target_lang}. (If language is Hindi, use Hindi Devanagari script).\n"""
 
-CRITICAL WORD COUNT MANDATE:
-Provide detailed descriptions so the overall total word count is approximately {target_len} words.
+    if target_len:
+        system_prompt += f"""\nCRITICAL CHARACTER COUNT MANDATE:
+Provide detailed descriptions so the overall total character count of the values is approximately {target_len} characters.\n"""
 
-Output valid JSON only matching keys: title, introduction, attractions, activities, best_time_to_visit, travel_tips, faqs."""
+    system_prompt += "\nOutput valid JSON only matching keys: title, introduction, attractions, activities, best_time_to_visit, travel_tips, faqs."
 
     # Compile prompt if final_prompt not passed
     if not payload.final_prompt:
         prompt_parts = [
             f"Create travel guide content for {payload.city}, {payload.country} using the provided JSON data:",
             json.dumps(payload.input_json, indent=2),
-            f"CRITICAL LANGUAGE MANDATE:\nYou MUST write and translate ALL output text strictly into {target_lang}. Do NOT write in English.",
-            f"TARGET WORD COUNT: Provide rich details to reach approx {target_len} words."
+            f"CRITICAL LANGUAGE MANDATE:\nYou MUST write and translate ALL output text strictly into {target_lang}. Do NOT write in English."
         ]
+        if target_len:
+            prompt_parts.append(f"TARGET CHARACTER COUNT: Provide rich details to reach approx {target_len} characters.")
         if payload.tone:
             prompt_parts.append(f"Tone: {payload.tone}")
         if payload.audience:
