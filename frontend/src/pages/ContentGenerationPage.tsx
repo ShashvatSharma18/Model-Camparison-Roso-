@@ -677,7 +677,7 @@ export const ContentGenerationPage: React.FC = () => {
                     disabled={regenerating}
                   >
                     <RefreshCw size={16} />
-                    <span>{regenerating ? 'Regenerating Failed Parameters...' : '⚡ Regenerate Failed Parameters'}</span>
+                    <span>{regenerating ? 'Regenerating Failed Parameters...' : 'Regenerate Failed Parameters'}</span>
                   </button>
                 )}
               </div>
