@@ -41,7 +41,19 @@ const FULL_OPENROUTER_MODELS: ModelInfo[] = [
   { id: "perplexity/sonar-reasoning", name: "Sonar Reasoning (Perplexity)", context_length: 127000, pricing: { prompt: "0.000001", completion: "0.000005" } }
 ];
 
-const NativeLookingCustomSelect = ({ models, selectedModel, setSelectedModel }: { models: ModelInfo[], selectedModel: string, setSelectedModel: (v: string) => void }) => {
+const CustomDropdown = ({ 
+  options, 
+  selectedValue, 
+  setSelectedValue, 
+  placeholder,
+  direction = 'down'
+}: { 
+  options: {value: string, label: string}[], 
+  selectedValue: string, 
+  setSelectedValue: (v: string) => void,
+  placeholder: string,
+  direction?: 'up' | 'down'
+}) => {
   const [isOpen, setIsOpen] = useState(false);
   const wrapperRef = useRef<HTMLDivElement>(null);
 
@@ -55,7 +67,7 @@ const NativeLookingCustomSelect = ({ models, selectedModel, setSelectedModel }: 
     return () => document.removeEventListener("mousedown", handleClickOutside);
   }, []);
   
-  const selectedName = selectedModel ? models.find(m => m.id === selectedModel)?.name || selectedModel : 'Select a Model...';
+  const selectedLabel = selectedValue ? options.find(o => o.value === selectedValue)?.label || selectedValue : placeholder;
 
   return (
     <div ref={wrapperRef} style={{ position: 'relative', width: '100%' }}>
@@ -69,7 +81,7 @@ const NativeLookingCustomSelect = ({ models, selectedModel, setSelectedModel }: 
         }}
       >
         <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-          {selectedModel ? `🤖 ${selectedName}` : selectedName}
+          {selectedLabel}
         </span>
         <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ color: '#64748B' }}><polyline points="6 9 12 15 18 9"></polyline></svg>
       </div>
@@ -77,10 +89,9 @@ const NativeLookingCustomSelect = ({ models, selectedModel, setSelectedModel }: 
       {isOpen && (
         <div style={{
           position: 'absolute',
-          bottom: '100%',
+          ...(direction === 'up' ? { bottom: '100%', marginBottom: '4px' } : { top: '100%', marginTop: '4px' }),
           left: 0,
           right: 0,
-          marginBottom: '4px',
           backgroundColor: '#FFFFFF',
           border: '1px solid #CBD5E1',
           borderRadius: '4px',
@@ -92,29 +103,29 @@ const NativeLookingCustomSelect = ({ models, selectedModel, setSelectedModel }: 
           flexDirection: 'column'
         }}>
           <div 
-            onClick={() => { setSelectedModel(""); setIsOpen(false); }}
+            onClick={() => { setSelectedValue(""); setIsOpen(false); }}
             style={{ padding: '8px 12px', cursor: 'pointer', fontSize: '14px', borderBottom: '1px solid #F1F5F9' }}
           >
-            Select a Model...
+            {placeholder}
           </div>
-          {models.map(m => (
+          {options.map(opt => (
             <div
-              key={m.id}
+              key={opt.value}
               onClick={() => {
-                setSelectedModel(m.id);
+                setSelectedValue(opt.value);
                 setIsOpen(false);
               }}
               style={{
                 padding: '8px 12px',
                 cursor: 'pointer',
-                backgroundColor: selectedModel === m.id ? '#2563EB' : '#FFFFFF',
-                color: selectedModel === m.id ? '#FFFFFF' : '#0F172A',
+                backgroundColor: selectedValue === opt.value ? '#2563EB' : '#FFFFFF',
+                color: selectedValue === opt.value ? '#FFFFFF' : '#0F172A',
                 fontSize: '14px',
               }}
-              onMouseEnter={(e) => { if (selectedModel !== m.id) e.currentTarget.style.backgroundColor = '#F8FAFC' }}
-              onMouseLeave={(e) => { if (selectedModel !== m.id) e.currentTarget.style.backgroundColor = '#FFFFFF' }}
+              onMouseEnter={(e) => { if (selectedValue !== opt.value) e.currentTarget.style.backgroundColor = '#F8FAFC' }}
+              onMouseLeave={(e) => { if (selectedValue !== opt.value) e.currentTarget.style.backgroundColor = '#FFFFFF' }}
             >
-              🤖 {m.name}
+              {opt.label}
             </div>
           ))}
         </div>
@@ -467,12 +478,13 @@ ${targetSchema}`);
               </div>
               <div>
                 <label className="form-label">Target Language</label>
-                <select className="select-input" value={selectedLanguage} onChange={(e) => setSelectedLanguage(e.target.value)}>
-                  <option value="">Select Language...</option>
-                  {PREDEFINED_LANGUAGES.map((lang) => (
-                    <option key={lang} value={lang}>{lang}</option>
-                  ))}
-                </select>
+                <CustomDropdown
+                  options={PREDEFINED_LANGUAGES.map(lang => ({ value: lang, label: lang }))}
+                  selectedValue={selectedLanguage}
+                  setSelectedValue={setSelectedLanguage}
+                  placeholder="Select Language..."
+                  direction="down"
+                />
               </div>
             </div>
           </div>
@@ -623,10 +635,12 @@ ${targetSchema}`);
             </div>
             <div className="form-group">
               <label className="form-label">Select OpenRouter Model ({models.length} Models Available)</label>
-              <NativeLookingCustomSelect 
-                models={models} 
-                selectedModel={selectedModel} 
-                setSelectedModel={setSelectedModel} 
+              <CustomDropdown
+                options={models.map(m => ({ value: m.id, label: `🤖 ${m.name}` }))}
+                selectedValue={selectedModel}
+                setSelectedValue={setSelectedModel}
+                placeholder="Select a Model..."
+                direction="up"
               />
             </div>
 
