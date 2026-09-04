@@ -86,7 +86,7 @@ const NativeLookingCustomSelect = ({ models, selectedModel, setSelectedModel }: 
           borderRadius: '4px',
           boxShadow: '0 4px 12px rgba(0,0,0,0.15)',
           zIndex: 9999,
-          maxHeight: '280px',
+          maxHeight: '450px',
           overflowY: 'auto',
           display: 'flex',
           flexDirection: 'column'
