@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect } from 'react';
 import { fetchModels, generateContent, verifyContent, regenerateContent, fetchTestRunUsedModels } from '../services/api';
 import type { ModelInfo, VerificationResult } from '../types';
 import { VerificationLogsModal } from '../components/VerificationLogsModal';
