@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { fetchModels, generateContent, verifyContent, regenerateContent, fetchTestRunUsedModels } from '../services/api';
 import type { ModelInfo, VerificationResult } from '../types';
 import { VerificationLogsModal } from '../components/VerificationLogsModal';
@@ -40,6 +40,88 @@ const FULL_OPENROUTER_MODELS: ModelInfo[] = [
   { id: "cohere/command-r-plus", name: "Command R+ (Cohere)", context_length: 128000, pricing: { prompt: "0.0000025", completion: "0.00001" } },
   { id: "perplexity/sonar-reasoning", name: "Sonar Reasoning (Perplexity)", context_length: 127000, pricing: { prompt: "0.000001", completion: "0.000005" } }
 ];
+
+const NativeLookingCustomSelect = ({ models, selectedModel, setSelectedModel }: { models: ModelInfo[], selectedModel: string, setSelectedModel: (v: string) => void }) => {
+  const [isOpen, setIsOpen] = useState(false);
+  const wrapperRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    function handleClickOutside(event: MouseEvent) {
+      if (wrapperRef.current && !wrapperRef.current.contains(event.target as Node)) {
+        setIsOpen(false);
+      }
+    }
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, []);
+  
+  const selectedName = selectedModel ? models.find(m => m.id === selectedModel)?.name || selectedModel : 'Select a Model...';
+
+  return (
+    <div ref={wrapperRef} style={{ position: 'relative', width: '100%' }}>
+      <div 
+        onClick={() => setIsOpen(!isOpen)}
+        className="select-input"
+        style={{ 
+          cursor: 'pointer', display: 'flex', justifyContent: 'space-between', alignItems: 'center', 
+          backgroundColor: '#FFFFFF', fontSize: '14px', fontWeight: 600, color: '#0F172A', minHeight: '44px',
+          userSelect: 'none'
+        }}
+      >
+        <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+          {selectedModel ? `🤖 ${selectedName}` : selectedName}
+        </span>
+        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ color: '#64748B' }}><polyline points="6 9 12 15 18 9"></polyline></svg>
+      </div>
+      
+      {isOpen && (
+        <div style={{
+          position: 'absolute',
+          bottom: '100%',
+          left: 0,
+          right: 0,
+          marginBottom: '4px',
+          backgroundColor: '#FFFFFF',
+          border: '1px solid #CBD5E1',
+          borderRadius: '4px',
+          boxShadow: '0 4px 12px rgba(0,0,0,0.15)',
+          zIndex: 9999,
+          maxHeight: '280px',
+          overflowY: 'auto',
+          display: 'flex',
+          flexDirection: 'column'
+        }}>
+          <div 
+            onClick={() => { setSelectedModel(""); setIsOpen(false); }}
+            style={{ padding: '8px 12px', cursor: 'pointer', fontSize: '14px', borderBottom: '1px solid #F1F5F9' }}
+          >
+            Select a Model...
+          </div>
+          {models.map(m => (
+            <div
+              key={m.id}
+              onClick={() => {
+                setSelectedModel(m.id);
+                setIsOpen(false);
+              }}
+              style={{
+                padding: '8px 12px',
+                cursor: 'pointer',
+                backgroundColor: selectedModel === m.id ? '#2563EB' : '#FFFFFF',
+                color: selectedModel === m.id ? '#FFFFFF' : '#0F172A',
+                fontSize: '14px',
+              }}
+              onMouseEnter={(e) => { if (selectedModel !== m.id) e.currentTarget.style.backgroundColor = '#F8FAFC' }}
+              onMouseLeave={(e) => { if (selectedModel !== m.id) e.currentTarget.style.backgroundColor = '#FFFFFF' }}
+            >
+              🤖 {m.name}
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+};
 
 export const ContentGenerationPage: React.FC = () => {
   // 1. Location
@@ -541,19 +623,11 @@ ${targetSchema}`);
             </div>
             <div className="form-group">
               <label className="form-label">Select OpenRouter Model ({models.length} Models Available)</label>
-              <select
-                className="select-input"
-                value={selectedModel}
-                onChange={(e) => setSelectedModel(e.target.value)}
-                style={{ fontSize: '14px', fontWeight: 600, color: '#0F172A' }}
-              >
-                <option value="">Select a Model...</option>
-                {models.map((m) => (
-                  <option key={m.id} value={m.id}>
-                    🤖 {m.name}
-                  </option>
-                ))}
-              </select>
+              <NativeLookingCustomSelect 
+                models={models} 
+                selectedModel={selectedModel} 
+                setSelectedModel={setSelectedModel} 
+              />
             </div>
 
             <button
