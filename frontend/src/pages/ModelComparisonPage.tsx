@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { fetchHistory, fetchComparisonRuns } from '../services/api';
 import type { HistoryRun } from '../types';
-import { Check, Code, FileText, Eye, Layers, Clock, Cpu, DollarSign, ToggleLeft, ToggleRight } from 'lucide-react';
+import { Check, Code, FileText, Eye, Layers, Clock, Cpu, DollarSign } from 'lucide-react';
 import { RunDetailDrawer } from '../components/RunDetailDrawer';
 
 export const ModelComparisonPage: React.FC = () => {
