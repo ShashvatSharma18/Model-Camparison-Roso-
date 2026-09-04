@@ -1,5 +1,6 @@
 import re
 import json
+import copy
 from typing import Dict, Any, List, Tuple
 from app.database import get_settings
 from app.openrouter import generate_completion
@@ -18,41 +19,134 @@ def extract_all_text_values(data: Any) -> str:
     return " ".join(text_parts)
 
 def count_characters(text: str) -> int:
-    """Counts characters in a text string."""
+    if not text:
+        return 0
     return len(text.strip())
 
-def check_content_length(content_json: Dict[str, Any], target_chars: int, tolerance_pct: float = 50.0) -> Tuple[str, int, int, int]:
+DEFAULT_LENGTHS = {
+    "meta_title": "60-75 chars",
+    "meta_description": "140-160 chars",
+    "snippet_summary": "180-260 chars",
+    "intro_paragraph": "350-550 chars",
+    "long_description": "1600-2400 chars",
+    "option_name": "<= 80 chars",
+    "option_description": "<= 255 chars",
+    "highlight_bullet": "<= 85 chars",
+    "faq_answer": "220-350 chars"
+}
+
+def _check_lengths_recursive(content_data: Any, schema_data: Any, path: str, errors: List[Dict[str, Any]]):
+    if isinstance(schema_data, dict):
+        # If the schema node has "character_length" and "description", it's a leaf node constraint
+        if "character_length" in schema_data:
+            length_str = schema_data.get("character_length", "")
+            if not length_str or not length_str.strip():
+                # Fallback to default if empty
+                base_key = path.split('.')[-1]
+                length_str = DEFAULT_LENGTHS.get(base_key, "")
+            
+            if length_str:
+                _validate_length(content_data, length_str, path, errors)
+            return
+
+        # Otherwise, iterate through the dictionary
+        if isinstance(content_data, dict):
+            for k, expected_val in schema_data.items():
+                if k in content_data:
+                    _check_lengths_recursive(content_data[k], expected_val, f"{path}.{k}" if path else k, errors)
+
+    elif isinstance(schema_data, list):
+        if len(schema_data) > 0 and isinstance(content_data, list):
+            # Apply the schema template to every item in the content list
+            for i, content_item in enumerate(content_data):
+                _check_lengths_recursive(content_item, schema_data[0], f"{path}[{i}]", errors)
+    elif isinstance(schema_data, str):
+        # Legacy string schema
+        base_key = path.split('.')[-1]
+        length_str = schema_data
+        if not length_str or not length_str.strip():
+            length_str = DEFAULT_LENGTHS.get(base_key, "")
+        if length_str:
+            _validate_length(content_data, length_str, path, errors)
+
+def _validate_length(field_content: Any, length_str: str, path: str, errors: List[Dict[str, Any]]):
+    min_chars = None
+    max_chars = None
+    
+    range_match = re.search(r'(\d+)\s*[-–]\s*(\d+)', length_str)
+    if range_match:
+        min_chars = int(range_match.group(1))
+        max_chars = int(range_match.group(2))
+    else:
+        lte_match = re.search(r'(?:<=|<)\s*(\d+)', length_str)
+        if lte_match:
+            min_chars = 0
+            max_chars = int(lte_match.group(1))
+            
+    if max_chars is not None:
+        if isinstance(field_content, list):
+            field_text = extract_all_text_values(field_content)
+        elif isinstance(field_content, dict):
+            field_text = extract_all_text_values(field_content)
+        else:
+            field_text = str(field_content) if field_content is not None else ""
+            
+        actual_chars = count_characters(field_text)
+        
+        if min_chars is not None and (actual_chars < min_chars or actual_chars > max_chars):
+            errors.append({
+                "field": path,
+                "expected": length_str,
+                "min": min_chars,
+                "max": max_chars,
+                "actual": actual_chars
+            })
+
+def check_per_section_lengths(content_json: Dict[str, Any], target_schema_str: str) -> List[Dict[str, Any]]:
     """
-    Checks if content character count is within specified target & tolerance percentage.
-    Default tolerance is 50%.
+    Parses the target_schema_str to find per-section character constraints (e.g. 60-75 chars, <= 80 chars)
+    and verifies the corresponding fields in the generated JSON.
+    Returns a list of error dictionaries for fields that failed, or empty list if all passed.
     """
-    full_text = extract_all_text_values(content_json)
-    actual_chars = count_characters(full_text)
+    errors = []
+    try:
+        schema = json.loads(target_schema_str)
+    except:
+        return []
 
-    min_allowed = max(50, int(target_chars * (1 - tolerance_pct / 100)))
-    max_allowed = int(target_chars * (1 + tolerance_pct / 100))
+    _check_lengths_recursive(content_json, schema, "", errors)
+    return errors
 
-    if min_allowed <= actual_chars <= max_allowed:
-        return "PASS", actual_chars, min_allowed, max_allowed
-    return "FAIL", actual_chars, min_allowed, max_allowed
-
-def check_banned_keywords(content_json: Dict[str, Any], banned_keywords: List[str]) -> Tuple[str, List[str]]:
-    """Checks if any banned keywords exist in text values (ignoring JSON keys)."""
+def check_banned_keywords(content_json: Dict[str, Any], banned_keywords: List[str]) -> Tuple[str, List[str], List[str]]:
+    """Checks if any banned keywords exist in text values (ignoring JSON keys), and returns (status, found_kws, affected_fields)."""
     if not banned_keywords:
-        return "PASS", []
+        return "PASS", [], []
 
-    full_text = extract_all_text_values(content_json).lower()
-    found = []
+    found_kws = set()
+    affected_fields = set()
 
-    for kw in banned_keywords:
-        if kw.strip():
-            pattern = r'\b' + re.escape(kw.strip().lower()) + r'\b'
-            if re.search(pattern, full_text):
-                found.append(kw)
+    def _search_recursive(data: Any, path: str):
+        if isinstance(data, dict):
+            for k, v in data.items():
+                _search_recursive(v, f"{path}.{k}" if path else k)
+        elif isinstance(data, list):
+            for i, item in enumerate(data):
+                _search_recursive(item, f"{path}[{i}]")
+        elif isinstance(data, str):
+            text_lower = data.lower()
+            for kw in banned_keywords:
+                if kw and kw.strip():
+                    pattern = r'\b' + re.escape(kw.strip().lower()) + r'\b'
+                    if re.search(pattern, text_lower):
+                        found_kws.add(kw)
+                        if path:
+                            affected_fields.add(path)
 
-    if found:
-        return "FAIL", found
-    return "PASS", []
+    _search_recursive(content_json, "")
+
+    if found_kws:
+        return "FAIL", list(found_kws), list(affected_fields)
+    return "PASS", [], []
 
 def verify_parameters_llm(
     verifier_model_id: str,
@@ -107,7 +201,6 @@ def verify_parameters_llm(
         return results
 
     # Construct LLM evaluation prompt ONLY for user-specified parameters!
-    text_content = extract_all_text_values(content_json)
     params_to_verify = []
 
     if results[0] is None:
@@ -117,10 +210,10 @@ def verify_parameters_llm(
     if results[2] is None:
         params_to_verify.append(f"Style Guide: Target is '{style_guide}'. Evaluate if text follows this guide.")
 
-    verifier_prompt = f"""Evaluate the travel content text below against the specified target parameters:
+    verifier_prompt = f"""Evaluate the generated JSON travel content below against the specified target parameters:
 
-Text Content:
-"{text_content[:2000]}"
+Generated JSON Content:
+{json.dumps(content_json, ensure_ascii=False, indent=2)}
 
 Target Rules to Verify:
 {chr(10).join(params_to_verify)}
@@ -181,35 +274,36 @@ def verify_all_parameters(content_json: Dict[str, Any], prompt_config: Dict[str,
     settings = get_settings()
     results = []
 
-    # 1. Character Length Check (Code) - 50% Tolerance for fair LLM variance
-    target_chars = prompt_config.get("content_length")
-    tolerance = settings.get("content_length_tolerance_pct", 50)
+    # 1. Per-Section Character Length Check (Code)
+    target_schema_str = prompt_config.get("target_schema", "{}")
+    length_errors = check_per_section_lengths(content_json, target_schema_str)
     
-    if target_chars is not None:
-        target_chars = int(target_chars)
-        len_status, actual_c, min_c, max_c = check_content_length(content_json, target_chars, tolerance)
+    if length_errors:
+        reasons = [f"{e['field']}: {e['actual']} chars (Expected: {e['expected']})" for e in length_errors]
+        affected_fields = [e['field'] for e in length_errors]
         results.append({
             "parameter": "Character Length",
-            "status": len_status if settings.get("verify_content_length", True) else "PASS",
-            "reason": f"Actual character count is {actual_c} characters (Target: ~{target_chars} characters, Allowed: {min_c}-{max_c} characters)." if len_status == "PASS" else f"Character count is {actual_c} characters. Target is ~{target_chars} characters (Allowed range: {min_c}-{max_c} characters).",
-            "affected_fields": ["introduction", "attractions", "activities"] if len_status == "FAIL" else []
+            "status": "FAIL" if settings.get("verify_per_section_length", True) else "PASS",
+            "reason": "Failed lengths: " + "; ".join(reasons),
+            "affected_fields": affected_fields
         })
     else:
         results.append({
             "parameter": "Character Length",
             "status": "PASS",
-            "reason": "Character length was not specified.",
+            "reason": "All specified section lengths are valid or none were specified.",
             "affected_fields": []
         })
 
     # 2. Banned Keywords Check (Code)
     banned = prompt_config.get("banned_keywords", [])
-    kw_status, found_kws = check_banned_keywords(content_json, banned)
+    kw_status, found_kws, affected_fields = check_banned_keywords(content_json, banned)
     results.append({
         "parameter": "Banned Keywords",
         "status": kw_status if settings.get("verify_banned_keywords", True) else "PASS",
         "reason": "No banned keywords or phrases detected." if kw_status == "PASS" else f"Found banned keywords: {', '.join(found_kws)}.",
-        "affected_fields": ["introduction", "attractions", "activities"] if kw_status == "FAIL" else []
+        "affected_fields": affected_fields
+
     })
 
     # 3-5. Tone, Audience, Style Guide Checks (LLM with auto-PASS for unselected parameters)
@@ -249,8 +343,8 @@ def targeted_regeneration(model_id: str, current_json: Dict[str, Any], prompt_co
     fixes = []
     for f in failed_results:
         p = f.get("parameter")
-        if p == "Character Length" and target_chars is not None:
-            fixes.append(f"- Strictly adjust overall character count to be as close to {target_chars} characters as possible.")
+        if p == "Character Length":
+            fixes.append(f"- Strictly adjust lengths: {f.get('reason')}")
         elif p == "Banned Keywords":
             banned = prompt_config.get("banned_keywords", [])
             fixes.append(f"- Strictly DO NOT use any of these banned words: {', '.join(banned)}.")
@@ -258,6 +352,8 @@ def targeted_regeneration(model_id: str, current_json: Dict[str, Any], prompt_co
             fixes.append(f"- Strictly adopt tone: {prompt_config.get('tone')}.")
         elif p == "Audience Variant":
             fixes.append(f"- Strictly adapt content for audience: {prompt_config.get('audience')}.")
+        elif p == "Style Guide":
+            fixes.append(f"- Strictly adhere to this style guide: {prompt_config.get('style_guide')}.")
 
     regen_prompt = f"""You are a travel content writer refining an existing JSON output for {prompt_config.get('city')}, {prompt_config.get('country')} in language: {language}.
 
@@ -270,20 +366,98 @@ Current Output JSON:
 REQUIRED FIXES (Apply ONLY these fixes):
 {chr(10).join(fixes)}
 
+GLOBAL CONSTRAINTS (You must STILL adhere to these for any text you rewrite):
+1. Target Schema with Length Limits:
+{prompt_config.get('target_schema', '{}')}
+2. Tone: {prompt_config.get('tone', 'Not specified')}
+3. Audience: {prompt_config.get('audience', 'Not specified')}
+4. Banned Keywords (DO NOT USE): {', '.join(prompt_config.get('banned_keywords', []))}
+5. Style Guide: {prompt_config.get('style_guide', 'Not specified')}
+
 CRITICAL INSTRUCTIONS:
-1. Preserve all other successful aspects of the current JSON (e.g., if the tone is already good, do not change it).
+1. Preserve all other successful aspects of the current JSON.
 2. Write all JSON string values strictly in {language}.
-3. Output valid JSON only with keys: title, introduction, attractions, activities, best_time_to_visit, travel_tips, faqs.
+3. Output valid JSON strictly matching the exact keys and structure of the Current Output JSON. Do not add or remove any keys.
+"""
+
+    system_prompt = f"""You are a professional travel content writer for RosoTravel.
+CRITICAL LANGUAGE MANDATE:
+Write and translate ALL text string values in the JSON output strictly into {language}.
+
+OUTPUT REQUIREMENT:
+Return strictly valid JSON matching the exact structure of the provided JSON. Adhere strictly to any character length limits specified in the schema values:
+{prompt_config.get('target_schema', '{}')}
 """
 
     success, result_json, p_tokens, c_tokens, t_tokens, latency_ms, cost = generate_completion(
         model_id=model_id,
         prompt=regen_prompt,
         api_key=api_key,
-        system_prompt=f"You are a travel content writer. Output valid JSON only. Write all text strictly in {language}."
+        system_prompt=system_prompt
     )
 
     if not success or not isinstance(result_json, dict):
         raise RuntimeError(f"OpenRouter generation failed (Check API credits or model ID).")
+
+    all_affected = set()
+    for f in failed_results:
+        for field in f.get("affected_fields", []):
+            all_affected.add(field)
+
+    def get_by_path(d, path):
+        keys = path.split('.')
+        val = d
+        for k in keys:
+            if isinstance(val, dict):
+                match = re.match(r'(\w+)\[(\d+)\]', k)
+                if match:
+                    lst_k, idx = match.groups()
+                    val = val.get(lst_k)
+                    if isinstance(val, list) and int(idx) < len(val):
+                        val = val[int(idx)]
+                    else:
+                        return None
+                else:
+                    val = val.get(k)
+            else:
+                return None
+        return val
+
+    def set_by_path(d, path, value):
+        keys = path.split('.')
+        curr = d
+        for k in keys[:-1]:
+            match = re.match(r'(\w+)\[(\d+)\]', k)
+            if match:
+                lst_k, idx = match.groups()
+                if lst_k not in curr:
+                    curr[lst_k] = []
+                while len(curr[lst_k]) <= int(idx):
+                    curr[lst_k].append({})
+                curr = curr[lst_k][int(idx)]
+            else:
+                if k not in curr:
+                    curr[k] = {}
+                curr = curr[k]
+        
+        last_k = keys[-1]
+        match = re.match(r'(\w+)\[(\d+)\]', last_k)
+        if match:
+            lst_k, idx = match.groups()
+            if lst_k not in curr:
+                curr[lst_k] = []
+            while len(curr[lst_k]) <= int(idx):
+                curr[lst_k].append(None)
+            curr[lst_k][int(idx)] = value
+        else:
+            curr[last_k] = value
+
+    if all_affected:
+        patched_json = copy.deepcopy(current_json)
+        for field in all_affected:
+            new_val = get_by_path(result_json, field)
+            if new_val is not None:
+                set_by_path(patched_json, field, new_val)
+        result_json = patched_json
 
     return result_json, p_tokens, c_tokens, t_tokens, cost

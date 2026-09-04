@@ -2,22 +2,9 @@ import React, { useState, useEffect } from 'react';
 import { fetchModels, generateContent, verifyContent, regenerateContent, fetchTestRunUsedModels } from '../services/api';
 import type { ModelInfo, VerificationResult } from '../types';
 import { VerificationLogsModal } from '../components/VerificationLogsModal';
-import { Sparkles, Upload, Trash2, AlertTriangle, CheckCircle, FileText, RefreshCw, Clock, Cpu, DollarSign, Globe, Database, Sliders, Code2, Bot, FileCheck, ShieldCheck, FileX } from 'lucide-react';
+import { Sparkles, Upload, Trash2, AlertTriangle, CheckCircle, FileText, RefreshCw, Clock, Cpu, DollarSign, Globe, Database, Sliders, Bot, FileCheck, ShieldCheck, FileX, Code2 } from 'lucide-react';
 
-const ensureArray = (data: any) => {
-  if (!data) return [];
-  if (Array.isArray(data)) return data;
-  if (typeof data === 'object') {
-    return Object.entries(data).map(([k, v]) => ({
-      name: k, title: k, question: k,
-      description: typeof v === 'string' ? v : JSON.stringify(v),
-      highlights: typeof v === 'string' ? v : JSON.stringify(v),
-      answer: typeof v === 'string' ? v : JSON.stringify(v),
-      value: typeof v === 'string' ? v : JSON.stringify(v)
-    }));
-  }
-  return [data];
-};
+
 
 const PREDEFINED_AUDIENCES = [
   'First-Time Visitor',
@@ -72,8 +59,48 @@ export const ContentGenerationPage: React.FC = () => {
 
   const [selectedAudience, setSelectedAudience] = useState<string>('');
 
-  // Content Length String State (starts blank "", placeholder "e.g. 200")
-  const [contentLengthStr, setContentLengthStr] = useState<string>('');
+  // Target Output Schema (JSON)
+  const [targetSchema, setTargetSchema] = useState<string>(`{
+  "meta_title": {
+    "description": "Meta Title",
+    "character_length": "60-75 chars"
+  },
+  "meta_description": {
+    "description": "Meta Description",
+    "character_length": "140-160 chars"
+  },
+  "snippet_summary": {
+    "description": "Snippet / Summary",
+    "character_length": "180-260 chars"
+  },
+  "intro_paragraph": {
+    "description": "Intro Paragraph",
+    "character_length": "350-550 chars"
+  },
+  "long_description": {
+    "description": "Long Description",
+    "character_length": "1600-2400 chars"
+  },
+  "option_name": {
+    "description": "Option Name (Variant)",
+    "character_length": "<= 80 chars"
+  },
+  "option_description": {
+    "description": "Option Description",
+    "character_length": "<= 255 chars"
+  },
+  "highlight_bullet": {
+    "description": "Highlight bullet",
+    "character_length": "<= 85 chars"
+  },
+  "faq": {
+    "question": "Write a relevant FAQ question",
+    "answer": {
+      "description": "Write the detailed answer for the question",
+      "character_length": "220-350 chars"
+    }
+  }
+}`);
 
   const [selectedBannedKeywords, setSelectedBannedKeywords] = useState<string[]>([]);
   const [customKeyword, setCustomKeyword] = useState('');
@@ -159,21 +186,53 @@ export const ContentGenerationPage: React.FC = () => {
     ];
 
     if (selectedLanguage) {
-      promptParts.push(`CRITICAL LANGUAGE MANDATE:\nYou MUST write and translate ALL output text strictly into ${selectedLanguage}. Do NOT write in English.`);
+      if (selectedLanguage.toLowerCase() === 'english') {
+        promptParts.push(`CRITICAL LANGUAGE MANDATE:\nYou MUST write ALL output text strictly in English.`);
+      } else if (selectedLanguage.toLowerCase() === 'hindi') {
+        promptParts.push(`CRITICAL LANGUAGE MANDATE:\nYou MUST write and translate ALL output text strictly into Hindi using Devanagari script. Do NOT write in English.`);
+      } else {
+        promptParts.push(`CRITICAL LANGUAGE MANDATE:\nYou MUST write and translate ALL output text strictly into ${selectedLanguage}. Do NOT write in English.`);
+      }
     }
+
     if (selectedTone) promptParts.push(`Tone: ${selectedTone}`);
     if (selectedAudience) promptParts.push(`Audience Variant: ${selectedAudience}`);
-    if (contentLengthStr) promptParts.push(`Character Length: ${contentLengthStr} characters`);
+
     if (selectedBannedKeywords.length > 0) {
       promptParts.push(`Banned Keywords / Phrases:\n${selectedBannedKeywords.map((kw) => '- ' + kw).join('\n')}`);
     }
-    if (styleGuide.trim()) promptParts.push(`Style Guide:\n${styleGuide.trim()}`);
+    if (styleGuide.trim()) {
+      promptParts.push(`Style Guide:\n${styleGuide.trim()}`);
+    }
+
+    promptParts.push(`OUTPUT REQUIREMENT:
+You MUST format your entire response as a single, valid JSON object.
+
+The user has provided a "Target Structure" below. It may be formatted as a valid JSON object, OR it may be formatted as a list of section headings followed by curly brace blocks.
+For example, if the target structure looks like:
+meta title
+{ "description": "Write a title", "character_length": "10-20 chars" }
+faq section
+{ "question": "Ask a question", "answer": { "description": "Answer it" } }
+
+You must convert this into a valid JSON object where the section headings become the top-level JSON keys, and the blocks dictate the value.
+- If the block contains "description" and/or "character_length", it is an INSTRUCTION BLOCK. You MUST NOT output the instruction block itself. Replace the entire block with a single STRING containing your generated content.
+- If the block does NOT contain "description" or "character_length" (or if it defines a nested object like the faq section above), it is a NESTED STRUCTURE. You MUST output a JSON object matching that exact nested structure.
+
+Example Output for the above:
+{
+  "meta title": "Your Generated Title Here",
+  "faq section": {
+    "question": "What is the capital of France?",
+    "answer": "Paris is the capital of France."
+  }
+}
+
+Target Structure:
+${targetSchema}`);
 
     setLivePrompt(promptParts.join('\n\n'));
-  }, [
-    autoBuild, city, country, inputJson, selectedLanguage, selectedTone,
-    selectedAudience, contentLengthStr, selectedBannedKeywords, styleGuide
-  ]);
+  }, [autoBuild, inputJson, selectedLanguage, selectedTone, selectedAudience, selectedBannedKeywords, styleGuide, targetSchema, city, country]);
 
   const handleAddTone = () => {
     if (customTone.trim()) {
@@ -224,9 +283,8 @@ export const ContentGenerationPage: React.FC = () => {
   };
 
   const handleGenerate = async () => {
-    // Check if the user has provided ANY inputs (JSON data or any prompt configuration)
     const hasData = inputJson !== null && Object.keys(inputJson).length > 0;
-    const hasConfig = selectedTone || selectedAudience || contentLengthStr || selectedBannedKeywords.length > 0 || styleGuide.trim();
+    const hasConfig = selectedTone || selectedAudience || targetSchema || selectedBannedKeywords.length > 0 || styleGuide.trim();
 
     if (!hasData && !hasConfig) {
       alert("Please provide some Input Data (JSON) OR select at least one Prompt Configuration before generating content.");
@@ -244,7 +302,6 @@ export const ContentGenerationPage: React.FC = () => {
     setExecutionMetrics(null);
 
     try {
-      const targetLen = contentLengthStr ? parseInt(contentLengthStr, 10) : null;
       const res = await generateContent({
         country,
         city,
@@ -252,7 +309,7 @@ export const ContentGenerationPage: React.FC = () => {
         input_json: inputJson,
         tone: selectedTone,
         audience: selectedAudience,
-        content_length: targetLen,
+        target_schema: targetSchema,
         banned_keywords: selectedBannedKeywords,
         style_guide: styleGuide,
         final_prompt: livePrompt,
@@ -403,24 +460,6 @@ export const ContentGenerationPage: React.FC = () => {
             </div>
 
             <div className="form-group">
-              <label className="form-label">Character Length</label>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-                <input
-                  type="text"
-                  className="input-text"
-                  style={{ width: '180px' }}
-                  placeholder="e.g. 2000"
-                  value={contentLengthStr}
-                  onChange={(e) => {
-                    const cleaned = e.target.value.replace(/[^0-9]/g, '');
-                    setContentLengthStr(cleaned);
-                  }}
-                />
-                <span style={{ fontSize: '13px', fontWeight: 700, color: '#64748B' }}>characters</span>
-              </div>
-            </div>
-
-            <div className="form-group">
               <label className="form-label">Banned Keywords / Phrases (Default: None selected)</label>
               <div className="pill-grid">
                 {SUGGESTED_KEYWORDS.map((kw) => {
@@ -448,39 +487,54 @@ export const ContentGenerationPage: React.FC = () => {
               <textarea className="textarea-input" rows={3} placeholder="Write or paste your style guide here..." value={styleGuide} onChange={(e) => setStyleGuide(e.target.value)} />
             </div>
           </div>
-
-          <div className="card">
-            <div className="card-header-badge" style={{ justifyContent: 'space-between' }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-                <div className="step-number">4</div>
-                <div className="step-title">
-                  <Code2 size={16} color="#2563EB" /> Live Prompt Compiler
-                </div>
-              </div>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-                <label style={{ fontSize: '12px', fontWeight: 600, color: '#64748B', display: 'flex', alignItems: 'center', gap: '4px', cursor: 'pointer' }}>
-                  <input type="checkbox" checked={autoBuild} onChange={(e) => setAutoBuild(e.target.checked)} />
-                  Auto-build
-                </label>
-                <button className="btn-secondary" style={{ padding: '4px 8px', fontSize: '12px' }} onClick={() => setLivePrompt('')}>Clear</button>
-              </div>
-            </div>
-            <textarea
-              className="textarea-input"
-              rows={8}
-              value={livePrompt}
-              onChange={(e) => setLivePrompt(e.target.value)}
-              style={{ fontFamily: 'var(--font-mono)', fontSize: '12px', backgroundColor: '#F8FAFC' }}
-            />
-          </div>
         </div>
 
         {/* RIGHT COLUMN: Execution Panel & Results */}
         <div style={{ position: 'sticky', top: '24px' }}>
-          {/* STEP 5: MODEL SELECTION & GENERATE ACTION */}
+        {/* --- STEP 4: Target Output Schema --- */}
+        <div className="card">
+          <div className="card-header-badge">
+            <div className="step-number">4</div>
+            <div className="step-title">
+              <FileText size={16} color="#2563EB" /> Target Output Schema (JSON)
+            </div>
+          </div>
+          <p style={{ fontSize: '12px', color: '#64748b', marginBottom: '12px', padding: '0 12px' }}>Define the exact fields you want and specify per-section character limits inside the values.</p>
+          <textarea
+            style={{ width: '100%', height: '420px', fontFamily: 'monospace', padding: '12px', borderRadius: '6px', border: '1px solid #334155', background: '#0f172a', color: '#e2e8f0', fontSize: '13px' }}
+            value={targetSchema}
+            onChange={(e) => setTargetSchema(e.target.value)}
+          />
+        </div>
+
+        {/* --- STEP 5: Live Prompt Compiler --- */}
+        <div className="card">
+          <div className="card-header-badge" style={{ justifyContent: 'space-between' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+              <div className="step-number">5</div>
+              <div className="step-title">
+                <Code2 size={16} color="#2563EB" /> Live Prompt Compiler
+              </div>
+            </div>
+            <label style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer', fontSize: '13px', color: '#64748B' }}>
+              <input type="checkbox" checked={autoBuild} onChange={() => setAutoBuild(!autoBuild)} />
+              Auto-build
+            </label>
+          </div>
+          <textarea
+            className="code-editor"
+            value={livePrompt}
+            readOnly={true}
+            style={{ height: '350px', backgroundColor: '#020617', opacity: 0.9, width: '100%', padding: '12px', borderRadius: '6px', color: '#e2e8f0', fontFamily: 'monospace', fontSize: '13px' }}
+          />
+        </div>
+
+
+
+          {/* STEP 6: MODEL SELECTION & GENERATE ACTION */}
           <div className="card">
             <div className="card-header-badge">
-              <div className="step-number">5</div>
+              <div className="step-number">6</div>
               <div className="step-title">
                 <Bot size={16} color="#2563EB" /> Model Execution
               </div>
@@ -546,86 +600,84 @@ export const ContentGenerationPage: React.FC = () => {
 
               {outputTab === 'formatted' ? (
                 <div style={{ padding: '16px', backgroundColor: '#F8FAFC', borderRadius: '8px', border: '1px solid #E2E8F0', maxHeight: '420px', overflowY: 'auto' }}>
-                  {generationOutput.error ? (
+                {generationOutput.error ? (
                     <div style={{ color: '#DC2626', fontWeight: 600, padding: '16px', backgroundColor: '#FEE2E2', borderRadius: '8px', border: '1px solid #FCA5A5' }}>
                       <FileX size={24} style={{ marginBottom: '8px' }} />
                       <p>{generationOutput.error}</p>
                     </div>
                   ) : (
-                    <>
-                      <h3 style={{ fontSize: '18px', fontWeight: 800, marginBottom: '8px', color: '#0F172A' }}>
-                        {generationOutput.title || 'Paris Travel Guide'}
-                      </h3>
-
-                      <div style={{ marginBottom: '14px' }}>
-                        <strong style={{ fontSize: '11px', textTransform: 'uppercase', color: '#64748B', display: 'block', marginBottom: '4px' }}>Introduction</strong>
-                        <p style={{ fontSize: '13px', color: '#475569', lineHeight: '1.6' }}>
-                          {generationOutput.introduction}
-                        </p>
-                      </div>
-
-                  {generationOutput.attractions && (
-                    <div style={{ marginBottom: '14px' }}>
-                      <strong style={{ fontSize: '11px', textTransform: 'uppercase', color: '#64748B', display: 'block', marginBottom: '4px' }}>Top Attractions</strong>
-                      <ul style={{ paddingLeft: '16px', fontSize: '12px', color: '#334155' }}>
-                        {ensureArray(generationOutput.attractions).map((a: any, i: number) => (
-                          <li key={i} style={{ marginBottom: '4px' }}>
-                            <strong>{a.title || a.name}</strong>: {a.description || a.highlights}
-                          </li>
-                        ))}
-                      </ul>
-                    </div>
-                  )}
-
-                  {generationOutput.activities && (
-                    <div style={{ marginBottom: '14px' }}>
-                      <strong style={{ fontSize: '11px', textTransform: 'uppercase', color: '#64748B', display: 'block', marginBottom: '4px' }}>Recommended Activities</strong>
-                      <div style={{ display: 'flex', flexWrap: 'wrap', gap: '4px' }}>
-                        {ensureArray(generationOutput.activities).map((act: any, i: number) => (
-                          <span key={i} style={{ backgroundColor: '#F1F5F9', padding: '3px 8px', borderRadius: '4px', fontSize: '11px' }}>
-                            🎯 {typeof act === 'string' ? act : (act.value || act.name || JSON.stringify(act))}
-                          </span>
-                        ))}
-                      </div>
-                    </div>
-                  )}
-
-                  {generationOutput.best_time_to_visit && (
-                    <div style={{ marginBottom: '14px' }}>
-                      <strong style={{ fontSize: '11px', textTransform: 'uppercase', color: '#64748B', display: 'block', marginBottom: '4px' }}>Best Time to Visit</strong>
-                      <p style={{ fontSize: '12px', color: '#475569' }}>
-                        {typeof generationOutput.best_time_to_visit === 'string' ? generationOutput.best_time_to_visit : JSON.stringify(generationOutput.best_time_to_visit)}
-                      </p>
-                    </div>
-                  )}
-
-                  {generationOutput.travel_tips && (
-                    <div style={{ marginBottom: '14px' }}>
-                      <strong style={{ fontSize: '11px', textTransform: 'uppercase', color: '#64748B', display: 'block', marginBottom: '4px' }}>Travel Tips</strong>
-                      <ul style={{ paddingLeft: '16px', fontSize: '12px', color: '#334155' }}>
-                        {ensureArray(generationOutput.travel_tips).map((tip: any, i: number) => (
-                          <li key={i} style={{ marginBottom: '4px' }}>
-                            💡 {typeof tip === 'string' ? tip : (tip.value || tip.name || JSON.stringify(tip))}
-                          </li>
-                        ))}
-                      </ul>
-                    </div>
-                  )}
-
-                  {generationOutput.faqs && (
-                    <div>
-                      <strong style={{ fontSize: '11px', textTransform: 'uppercase', color: '#64748B', display: 'block', marginBottom: '4px' }}>Frequently Asked Questions</strong>
-                      <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-                        {ensureArray(generationOutput.faqs).map((faq: any, i: number) => (
-                          <div key={i} style={{ backgroundColor: '#FFFFFF', padding: '10px', borderRadius: '6px', border: '1px solid #E2E8F0' }}>
-                            <strong style={{ fontSize: '12px', color: '#0F172A', display: 'block', marginBottom: '4px' }}>Q: {faq.question}</strong>
-                            <p style={{ fontSize: '12px', color: '#475569', margin: 0 }}>A: {faq.answer}</p>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
+                      {Object.keys(generationOutput).filter(k => k !== 'error').sort((a, b) => {
+                        const lowerSchema = targetSchema.toLowerCase();
+                        const idxA = lowerSchema.indexOf(a.toLowerCase());
+                        const idxB = lowerSchema.indexOf(b.toLowerCase());
+                        if (idxA !== -1 && idxB !== -1) return idxA - idxB;
+                        if (idxA !== -1) return -1;
+                        if (idxB !== -1) return 1;
+                        return 0;
+                      }).map((key) => {
+                        const value = generationOutput[key];
+                        return (
+                          <div key={key}>
+                            <strong style={{ fontSize: '11px', textTransform: 'uppercase', color: '#64748B', display: 'block', marginBottom: '4px' }}>
+                              {key.replace(/_/g, ' ')}
+                            </strong>
+                            {typeof value === 'string' ? (
+                              <p style={{ fontSize: '13px', color: '#475569', lineHeight: '1.6' }}>{value}</p>
+                            ) : Array.isArray(value) ? (
+                              <ul style={{ paddingLeft: '16px', fontSize: '12px', color: '#334155', margin: 0 }}>
+                                {value.map((item: any, i: number) => (
+                                  <li key={i} style={{ marginBottom: '4px' }}>
+                                    {typeof item === 'string' ? item : typeof item === 'object' && item !== null ? (
+                                      <div style={{ marginBottom: '6px' }}>
+                                        {Object.keys(item).sort((a, b) => {
+                                          const lowerSchema = targetSchema.toLowerCase();
+                                          const idxA = lowerSchema.indexOf(a.toLowerCase());
+                                          const idxB = lowerSchema.indexOf(b.toLowerCase());
+                                          if (idxA !== -1 && idxB !== -1) return idxA - idxB;
+                                          if (idxA !== -1) return -1;
+                                          if (idxB !== -1) return 1;
+                                          return 0;
+                                        }).map((k) => (
+                                          <div key={k}>
+                                            <strong>{k.replace(/_/g, ' ').toUpperCase()}</strong>: {item[k]}
+                                          </div>
+                                        ))}
+                                      </div>
+                                    ) : JSON.stringify(item)}
+                                  </li>
+                                ))}
+                              </ul>
+                            ) : typeof value === 'object' && value !== null ? (
+                              <div style={{ backgroundColor: '#F8FAFC', padding: '10px', borderRadius: '6px' }}>
+                                {Object.keys(value).sort((a, b) => {
+                                  const lowerSchema = targetSchema.toLowerCase();
+                                  const idxA = lowerSchema.indexOf(a.toLowerCase());
+                                  const idxB = lowerSchema.indexOf(b.toLowerCase());
+                                  if (idxA !== -1 && idxB !== -1) return idxA - idxB;
+                                  if (idxA !== -1) return -1;
+                                  if (idxB !== -1) return 1;
+                                  return 0;
+                                }).map((k) => (
+                                  <div key={k} style={{ marginBottom: '6px' }}>
+                                    <strong style={{ fontSize: '12px', color: '#0F172A' }}>{k.replace(/_/g, ' ').toUpperCase()}</strong>: 
+                                    <span style={{ fontSize: '12px', color: '#475569', marginLeft: '4px' }}>
+                                      {typeof value[k] === 'string' || typeof value[k] === 'number'
+                                        ? value[k]
+                                        : JSON.stringify(value[k])}
+                                    </span>
+                                  </div>
+                                ))}
+                              </div>
+                            ) : (
+                              <pre style={{ fontSize: '12px', color: '#475569', whiteSpace: 'pre-wrap', backgroundColor: '#F1F5F9', padding: '8px', borderRadius: '4px', margin: 0 }}>
+                                {JSON.stringify(value, null, 2)}
+                              </pre>
+                            )}
                           </div>
-                        ))}
-                      </div>
+                        );
+                      })}
                     </div>
-                  )}
-                    </>
                   )}
                 </div>
               ) : (

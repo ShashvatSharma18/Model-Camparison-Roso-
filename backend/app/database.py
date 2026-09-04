@@ -30,7 +30,7 @@ def get_settings() -> Dict[str, Any]:
         "verifier_model_id": "openai/gpt-4o",
         "verify_tone": True,
         "verify_audience": True,
-        "verify_content_length": True,
+        "verify_per_section_length": True,
         "verify_banned_keywords": True,
         "verify_style_guide": True,
         "content_length_tolerance_pct": 50,
@@ -69,19 +69,19 @@ def update_settings(new_settings: Dict[str, Any]) -> Dict[str, Any]:
 
 def find_matching_test_run(country: str, city: str, language: str, input_json: Dict[str, Any], prompt_config: Dict[str, Any]) -> Optional[str]:
     """Finds an existing matching test_run_id for the given location & prompt config."""
-    # Helper to check if pc matches
-    def pc_matches(pc_id: str) -> bool:
+    def pc_matches(pc_id: str, tr_input_json: Dict[str, Any]) -> bool:
         pc = next((p for p in _in_memory_db["prompt_configs"] if p.get("test_run_id") == pc_id), None)
         if not pc: return False
         return (pc.get("tone") == prompt_config.get("tone") and
                 pc.get("audience") == prompt_config.get("audience") and
-                pc.get("content_length") == prompt_config.get("content_length"))
+                pc.get("content_length") == prompt_config.get("content_length") and
+                tr_input_json.get("__target_schema__", "") == prompt_config.get("target_schema", ""))
 
     for tr in reversed(_in_memory_db["test_runs"]):
         if (tr.get("country", "").lower() == country.lower() and
             tr.get("city", "").lower() == city.lower() and
             tr.get("language", "").lower() == language.lower() and
-            pc_matches(tr["id"])):
+            pc_matches(tr["id"], tr.get("input_json", {}))):
             return tr["id"]
 
     if supabase_client:
@@ -98,7 +98,8 @@ def find_matching_test_run(country: str, city: str, language: str, input_json: D
                             pc = pcs[0]
                             if (pc.get("tone") == prompt_config.get("tone", "") and
                                 pc.get("audience") == prompt_config.get("audience", "") and
-                                pc.get("content_length") == prompt_config.get("content_length", 200)):
+                                pc.get("content_length") == prompt_config.get("content_length", 200) and
+                                tr.get("input_json", {}).get("__target_schema__", "") == prompt_config.get("target_schema", "")):
                                 return tr["id"]
         except Exception as e:
             print(f"Supabase search test run error: {e}")
@@ -109,12 +110,15 @@ def create_test_run(country: str, city: str, language: str, input_json: Dict[str
     test_run_id = str(uuid.uuid4())
     now = datetime.datetime.now(datetime.timezone.utc).isoformat()
 
+    input_json_copy = dict(input_json)
+    input_json_copy["__target_schema__"] = prompt_config.get("target_schema", "")
+
     tr_record = {
         "id": test_run_id,
         "country": country,
         "city": city,
         "language": language,
-        "input_json": input_json,
+        "input_json": input_json_copy,
         "created_at": now
     }
     _in_memory_db["test_runs"].append(tr_record)
@@ -324,16 +328,25 @@ def get_run_details(run_id: str) -> Optional[Dict[str, Any]]:
         "regenerations": regs
     }
 
-def get_comparison_runs(test_run_id: str) -> List[Dict[str, Any]]:
+def get_comparison_runs(test_run_id_str: str) -> List[Dict[str, Any]]:
     runs = []
+    test_run_ids = test_run_id_str.split(",") if test_run_id_str else []
+    
     if supabase_client:
         try:
-            res = supabase_client.table("generations").select("*, test_runs(*, prompt_configs(*)), verification_results(*), regenerations(*)").eq("test_run_id", test_run_id).execute()
+            query = supabase_client.table("generations").select("*, test_runs(*, prompt_configs(*)), verification_results(*), regenerations(*)")
+            if test_run_ids and "default" not in test_run_ids:
+                query = query.in_("test_run_id", test_run_ids)
+            res = query.execute()
+            
             if res.data:
                 for g in res.data:
                     if g.get("status") in ["Verified", "Regenerated", "Pass", "PASS"] and "error" not in g.get("output_json", {}):
                         tr = g.get("test_runs") or {}
-                        pc = tr.get("prompt_configs", [{}])[0] if isinstance(tr.get("prompt_configs"), list) and len(tr.get("prompt_configs")) > 0 else {}
+                        pcs = tr.get("prompt_configs")
+                        pc = pcs[0] if pcs else {}
+                        if tr and "input_json" in tr and isinstance(tr["input_json"], dict):
+                            pc["target_schema"] = tr["input_json"].get("__target_schema__", "")
                         runs.append({
                             "generation": g,
                             "test_run": tr,
@@ -346,7 +359,7 @@ def get_comparison_runs(test_run_id: str) -> List[Dict[str, Any]]:
             print(f"Supabase comparison query error: {e}")
 
     for g in _in_memory_db["generations"]:
-        if g.get("test_run_id") == test_run_id or not test_run_id or test_run_id == "default":
+        if g.get("test_run_id") in test_run_ids or not test_run_ids or "default" in test_run_ids:
             if g.get("status") in ["Verified", "Regenerated", "Pass", "PASS"] and "error" not in g.get("output_json", {}):
                 tr = next((t for t in _in_memory_db["test_runs"] if t["id"] == g["test_run_id"]), {})
                 pc = next((p for p in _in_memory_db["prompt_configs"] if p["test_run_id"] == g["test_run_id"]), {})

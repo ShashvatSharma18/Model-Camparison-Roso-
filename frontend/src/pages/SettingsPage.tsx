@@ -85,10 +85,10 @@ export const SettingsPage: React.FC = () => {
           <label style={{ display: 'flex', alignItems: 'center', gap: '10px', fontSize: '14px', cursor: 'pointer' }}>
             <input
               type="checkbox"
-              checked={settings.verify_content_length}
-              onChange={(e) => setSettings({ ...settings, verify_content_length: e.target.checked })}
+              checked={settings.verify_per_section_length}
+              onChange={(e) => setSettings({ ...settings, verify_per_section_length: e.target.checked })}
             />
-            Verify Content Length (Code)
+            Verify Per-Section Lengths (Code)
           </label>
 
           <label style={{ display: 'flex', alignItems: 'center', gap: '10px', fontSize: '14px', cursor: 'pointer' }}>
@@ -123,26 +123,6 @@ export const SettingsPage: React.FC = () => {
       <div className="card">
         <div className="card-title">Verification & Regeneration Tuning</div>
 
-        <div className="form-group">
-          <label className="form-label">Content Length Tolerance (%)</label>
-          <input
-            type="number"
-            className="input-text"
-            value={settings.content_length_tolerance_pct}
-            onChange={(e) => setSettings({ ...settings, content_length_tolerance_pct: Number(e.target.value) })}
-          />
-          <span style={{ fontSize: '12px', color: '#64748B' }}>Target word count is allowed ± this percentage before failing length check.</span>
-        </div>
-
-        <div className="form-group">
-          <label className="form-label">Maximum Verification Retries</label>
-          <input
-            type="number"
-            className="input-text"
-            value={settings.max_verification_retries}
-            onChange={(e) => setSettings({ ...settings, max_verification_retries: Number(e.target.value) })}
-          />
-        </div>
 
         <div className="form-group">
           <label className="form-label">Regeneration Strategy</label>

@@ -622,3 +622,33 @@ body {
   z-index: 1;
 }
 
+
+/* Drawer and Modal Overlays */
+.drawer-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background-color: rgba(15, 23, 42, 0.5);
+  backdrop-filter: blur(4px);
+  z-index: 1000;
+  display: flex;
+  justify-content: flex-end;
+}
+
+.drawer-content {
+  background-color: var(--bg-card);
+  width: 100%;
+  max-width: 800px;
+  height: 100vh;
+  padding: 32px;
+  overflow-y: auto;
+  box-shadow: -10px 0 40px rgba(0, 0, 0, 0.15);
+  animation: slideInRight 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+@keyframes slideInRight {
+  from { transform: translateX(100%); }
+  to { transform: translateX(0); }
+}

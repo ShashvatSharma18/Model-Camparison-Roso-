@@ -67,7 +67,7 @@ export interface AppSettings {
   verifier_model_id: string;
   verify_tone: boolean;
   verify_audience: boolean;
-  verify_content_length: boolean;
+  verify_per_section_length: boolean;
   verify_banned_keywords: boolean;
   verify_style_guide: boolean;
   verify_additional_instructions: boolean;

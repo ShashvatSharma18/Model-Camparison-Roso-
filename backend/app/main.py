@@ -35,7 +35,7 @@ class ContentGenerateRequest(BaseModel):
     input_json: Dict[str, Any]
     tone: Optional[str] = ""
     audience: Optional[str] = ""
-    content_length: Optional[int] = None
+    target_schema: Optional[str] = None
     banned_keywords: List[str] = []
     style_guide: Optional[str] = ""
     final_prompt: Optional[str] = ""
@@ -51,7 +51,7 @@ class SettingsUpdateRequest(BaseModel):
     verifier_model_id: Optional[str] = None
     verify_tone: Optional[bool] = None
     verify_audience: Optional[bool] = None
-    verify_content_length: Optional[bool] = None
+    verify_per_section_length: Optional[bool] = None
     verify_banned_keywords: Optional[bool] = None
     verify_style_guide: Optional[bool] = None
     content_length_tolerance_pct: Optional[int] = None
@@ -69,7 +69,7 @@ def verify_session_token(authorization: Optional[str] = Header(None)):
 
 @app.post("/api/auth/verify")
 def auth_verify(payload: AuthVerifyRequest):
-    key = payload.api_key.strip()
+    key = payload.api_key.strip() if payload.api_key else ""
     if not key.startswith("sk-or-v1-"):
         raise HTTPException(status_code=401, detail="Invalid OpenRouter API key format.")
     
@@ -132,7 +132,7 @@ def generate_content_endpoint(payload: ContentGenerateRequest, token: str = Depe
     prompt_config = {
         "tone": payload.tone or "",
         "audience": payload.audience or "",
-        "content_length": payload.content_length,
+        "target_schema": payload.target_schema,
         "banned_keywords": payload.banned_keywords,
         "style_guide": payload.style_guide or "",
         "final_prompt": payload.final_prompt or "",
@@ -159,28 +159,32 @@ def generate_content_endpoint(payload: ContentGenerateRequest, token: str = Depe
         )
 
     target_lang = payload.language or "English"
-    target_len = payload.content_length
+    target_schema_str = payload.target_schema or "{}"
+
+    if target_lang.lower() == "english":
+        lang_mandate = f"Write ALL text string values in the JSON output strictly in English."
+    elif target_lang.lower() == "hindi":
+        lang_mandate = f"Write and translate ALL text string values in the JSON output strictly into Hindi using Devanagari script. Do NOT write in English."
+    else:
+        lang_mandate = f"Write and translate ALL text string values in the JSON output strictly into {target_lang}. Do NOT write in English."
 
     # Explicit Multilingual System Prompt Mandate
     system_prompt = f"""You are a professional travel content writer for RosoTravel.
 CRITICAL LANGUAGE MANDATE:
-Write ALL text string values in the JSON output strictly in {target_lang}. (If language is Hindi, use Hindi Devanagari script).\n"""
+{lang_mandate}
 
-    if target_len:
-        system_prompt += f"""\nCRITICAL CHARACTER COUNT MANDATE:
-Provide detailed descriptions so the overall total character count of the values is approximately {target_len} characters.\n"""
-
-    system_prompt += "\nOutput valid JSON only matching keys: title, introduction, attractions, activities, best_time_to_visit, travel_tips, faqs."
+OUTPUT REQUIREMENT:
+Return strictly valid JSON matching the following TARGET SCHEMA exactly. Adhere strictly to any character length limits specified in the schema values:
+{target_schema_str}
+"""
 
     # Compile prompt if final_prompt not passed
     if not payload.final_prompt:
         prompt_parts = [
             f"Create travel guide content for {payload.city}, {payload.country} using the provided JSON data:",
             json.dumps(payload.input_json, indent=2),
-            f"CRITICAL LANGUAGE MANDATE:\nYou MUST write and translate ALL output text strictly into {target_lang}. Do NOT write in English."
+            f"CRITICAL LANGUAGE MANDATE:\n{lang_mandate}"
         ]
-        if target_len:
-            prompt_parts.append(f"TARGET CHARACTER COUNT: Provide rich details to reach approx {target_len} characters.")
         if payload.tone:
             prompt_parts.append(f"Tone: {payload.tone}")
         if payload.audience:
@@ -190,18 +194,10 @@ Provide detailed descriptions so the overall total character count of the values
         if payload.style_guide:
             prompt_parts.append(f"Style Guide:\n{payload.style_guide}")
 
-        prompt_parts.append("""
+        prompt_parts.append(f"""
 OUTPUT REQUIREMENT:
-Return strictly valid JSON matching this structure:
-{
-  "title": "Title in target language",
-  "introduction": "Detailed intro paragraph in target language...",
-  "attractions": [{"title": "Name", "description": "Details in target language..."}],
-  "activities": ["Activity 1 in target language", "Activity 2..."],
-  "best_time_to_visit": "Details in target language...",
-  "travel_tips": ["Tip 1 in target language", "Tip 2..."],
-  "faqs": [{"question": "Q in target language?", "answer": "A in target language..."}]
-}
+Return strictly valid JSON matching this structure and constraints exactly:
+{target_schema_str}
 """)
         compiled_prompt = "\n\n".join(prompt_parts)
     else:

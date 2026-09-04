@@ -33,6 +33,73 @@ export const RunDetailDrawer: React.FC<RunDetailDrawerProps> = ({ runId, onClose
   const pc = data?.prompt_config || {};
   const vrs = data?.verification_results || [];
 
+  const getLengthConstraints = (schemaData?: any) => {
+    if (!schemaData) return [];
+    
+    let schemaObj = null;
+    let rawStr = "";
+
+    if (typeof schemaData === 'object') {
+       schemaObj = schemaData;
+       rawStr = JSON.stringify(schemaData);
+    } else if (typeof schemaData === 'string') {
+       rawStr = schemaData;
+       try {
+         schemaObj = JSON.parse(schemaData);
+       } catch (e) {
+         schemaObj = null;
+       }
+    }
+
+    const constraints: { path: string, constraint: string }[] = [];
+
+    // Approach 1: Traverse JSON Object
+    if (schemaObj) {
+      const recurse = (obj: any, path: string) => {
+        if (typeof obj === 'string') {
+          const match = obj.match(/\b(\d+-\d+\s*chars|max\s*\d+\s*chars|min\s*\d+\s*chars|[^)]*character[^)]*)\b/i);
+          if (match) {
+            constraints.push({ path, constraint: match[0].trim() });
+          }
+        } else if (Array.isArray(obj)) {
+          if (obj.length > 0) recurse(obj[0], path ? `${path} (Item)` : 'Item');
+        } else if (typeof obj === 'object' && obj !== null) {
+          for (const key of Object.keys(obj)) {
+            const displayKey = key.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase());
+            recurse(obj[key], path ? `${path} > ${displayKey}` : displayKey);
+          }
+        }
+      };
+      recurse(schemaObj, '');
+      if (constraints.length > 0) return constraints;
+    }
+
+    // Approach 2: Regex on Raw String (fallback for plain text schemas)
+    const lines = rawStr.split('\n');
+    let currentSection = 'General';
+    
+    for (let line of lines) {
+       line = line.trim();
+       if (!line) continue;
+       
+       const sectionMatch = line.match(/^"?([a-zA-Z0-9_\s]+)"?\s*:/);
+       if (sectionMatch) {
+         currentSection = sectionMatch[1].trim();
+       } else if (line.length > 2 && !line.includes('{') && !line.includes('}') && !line.match(/character|chars/i)) {
+         currentSection = line;
+       }
+
+       const match = line.match(/\b(\d+-\d+\s*chars|max\s*\d+\s*chars|min\s*\d+\s*chars|[^"'{()]*character[^"'{()]*)\b/i);
+       if (match) {
+         constraints.push({ path: currentSection, constraint: match[0].trim() });
+       }
+    }
+    
+    return constraints;
+  };
+
+  const lengthConstraints = getLengthConstraints(pc.target_schema);
+
   return (
     <div className="drawer-overlay" onClick={onClose}>
       <div className="drawer-content" onClick={(e) => e.stopPropagation()}>
@@ -68,8 +135,20 @@ export const RunDetailDrawer: React.FC<RunDetailDrawerProps> = ({ runId, onClose
             <div><strong>Language:</strong> {tr.language}</div>
             <div><strong>Tone:</strong> {pc.tone}</div>
             <div><strong>Audience:</strong> {pc.audience}</div>
-            <div><strong>Content Length:</strong> {pc.content_length} words</div>
             <div><strong>Banned Keywords:</strong> {JSON.stringify(pc.banned_keywords || [])}</div>
+            
+            {lengthConstraints.length > 0 && (
+              <div style={{ marginTop: '12px', paddingTop: '12px', borderTop: '1px dashed #CBD5E1' }}>
+                <strong style={{ display: 'block', marginBottom: '8px', color: '#0F172A' }}>Section Length Constraints:</strong>
+                <ul style={{ margin: 0, paddingLeft: '20px', display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                  {lengthConstraints.map((c, i) => (
+                    <li key={i}>
+                      <span style={{ fontWeight: 600, color: '#475569' }}>{c.path}:</span> <span style={{ color: '#0284C7', fontWeight: 600 }}>{c.constraint}</span>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            )}
           </div>
         </div>
 
@@ -111,7 +190,47 @@ export const RunDetailDrawer: React.FC<RunDetailDrawerProps> = ({ runId, onClose
             overflowY: 'auto',
             fontFamily: 'monospace'
           }}>
-            {JSON.stringify(gen.output_json, null, 2)}
+            {(() => {
+              if (!gen.output_json) return "{}";
+              const outJson = gen.output_json;
+              let orderedKeys = Object.keys(outJson);
+              try {
+                const schemaStr = pc.target_schema;
+                if (schemaStr) {
+                  // If schemaStr is valid JSON, sort by JSON keys
+                  try {
+                    const parsedSchema = JSON.parse(schemaStr);
+                    const schemaKeys = Object.keys(parsedSchema);
+                    orderedKeys.sort((a, b) => {
+                      const idxA = schemaKeys.indexOf(a);
+                      const idxB = schemaKeys.indexOf(b);
+                      if (idxA !== -1 && idxB !== -1) return idxA - idxB;
+                      if (idxA !== -1) return -1;
+                      if (idxB !== -1) return 1;
+                      return 0;
+                    });
+                  } catch (e2) {
+                    // Not valid JSON, sort by string index
+                    const lowerSchema = schemaStr.toLowerCase();
+                    orderedKeys.sort((a, b) => {
+                      const idxA = lowerSchema.indexOf(a.toLowerCase());
+                      const idxB = lowerSchema.indexOf(b.toLowerCase());
+                      if (idxA !== -1 && idxB !== -1) return idxA - idxB;
+                      if (idxA !== -1) return -1;
+                      if (idxB !== -1) return 1;
+                      return 0;
+                    });
+                  }
+                }
+              } catch (e) {
+                // Ignore fallback to original order
+              }
+              const sortedJson: any = {};
+              orderedKeys.forEach(k => {
+                sortedJson[k] = outJson[k];
+              });
+              return JSON.stringify(sortedJson, null, 2);
+            })()}
           </pre>
         </div>
       </div>

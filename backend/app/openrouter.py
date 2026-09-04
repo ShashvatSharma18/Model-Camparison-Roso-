@@ -63,35 +63,53 @@ def calculate_completion_cost(model_id: str, input_tokens: int, output_tokens: i
     c_price = float(model.get("pricing", {}).get("completion", 0.0000006))
     return round((input_tokens * p_price) + (output_tokens * c_price), 6)
 
+def _flatten_llm_output(data: Any) -> Any:
+    if isinstance(data, dict):
+        if "description" in data and "character_length" in data:
+            return data["description"]
+        for k, v in data.items():
+            data[k] = _flatten_llm_output(v)
+        return data
+    elif isinstance(data, list):
+        return [_flatten_llm_output(item) for item in data]
+    else:
+        return data
+
 def validate_and_parse_json(text: str) -> Tuple[bool, Dict[str, Any]]:
-    cleaned = text.strip()
-    if cleaned.startswith("```json"):
-        cleaned = cleaned[7:]
-    elif cleaned.startswith("```"):
-        cleaned = cleaned[:-3]
-    if cleaned.endswith("```"):
-        cleaned = cleaned[:-3]
-    cleaned = cleaned.strip()
+    if not text:
+        return False, {"error": "Empty text"}
+        
+    import re
+    # Try to find JSON block if there's text before/after
+    match = re.search(r'```(?:json)?\s*(\{.*?\})\s*```', text, re.DOTALL)
+    if match:
+        cleaned = match.group(1)
+    else:
+        # Fallback to finding the first { and last }
+        start_idx = text.find('{')
+        end_idx = text.rfind('}')
+        if start_idx != -1 and end_idx != -1 and end_idx >= start_idx:
+            cleaned = text[start_idx:end_idx+1]
+        else:
+            cleaned = text.strip()
 
     try:
         data = json.loads(cleaned)
         if isinstance(data, dict):
-            required_keys = ["title", "introduction", "attractions", "activities"]
-            if all(k in data for k in required_keys):
-                return True, data
-            data.setdefault("title", "Paris Travel Guide")
-            data.setdefault("introduction", "Paris is an extraordinary city filled with rich culture, historic landmarks, and world-class culinary experiences.")
-            data.setdefault("attractions", [
-                {"title": "Eiffel Tower", "description": "The quintessential Parisian landmark offering breathtaking views."},
-                {"title": "Louvre Museum", "description": "World's largest museum featuring the Mona Lisa."}
-            ])
-            data.setdefault("activities", ["Seine River Sunset Cruise", "French Bakery Workshop"])
-            data.setdefault("best_time_to_visit", "Spring (April to May) and Autumn (September to October).")
-            data.setdefault("travel_tips", ["Use the Métro", "Greeting with Bonjour"])
-            data.setdefault("faqs", [{"question": "Is Paris ideal for families?", "answer": "Yes, Paris offers vibrant parks and museums."}])
-            return True, data
+            # Flatten in case LLM mistakenly returned the instruction dictionary
+            flattened_data = _flatten_llm_output(data)
+            return True, flattened_data
     except Exception as e:
         print(f"JSON validation error: {e}")
+        print(f"--- RAW TEXT BEGIN ---\n{text}\n--- RAW TEXT END ---")
+        print(f"--- CLEANED TEXT BEGIN ---\n{cleaned}\n--- CLEANED TEXT END ---")
+        
+        # Also write to a file for easier debugging
+        try:
+            with open("failed_json_log.txt", "w") as f:
+                f.write(f"Error: {e}\n\nRAW:\n{text}\n\nCLEANED:\n{cleaned}")
+        except:
+            pass
     
     return False, {}
 
@@ -183,35 +201,23 @@ def _create_mock_content(model_id: str, prompt: str) -> Dict[str, Any]:
         if match:
             target_length = int(match.group(1))
 
-    # Apply sanitization
-    data["title"] = sanitize(data["title"])
-    data["introduction"] = sanitize(data["introduction"])
-    for a in data["attractions"]:
-        a["title"] = sanitize(a["title"])
-        a["description"] = sanitize(a["description"])
-    data["activities"] = [sanitize(act) for act in data["activities"]]
-    data["best_time_to_visit"] = sanitize(data["best_time_to_visit"])
-    data["travel_tips"] = [sanitize(tip) for tip in data["travel_tips"]]
-    for f in data["faqs"]:
-        f["question"] = sanitize(f["question"])
-        f["answer"] = sanitize(f["answer"])
-        
-    # Apply length adjustment
-    if target_length:
-        import json
-        current_len = len(json.dumps(data))
-        if current_len > target_length:
-            # truncate descriptions
-            for a in data["attractions"]:
-                a["description"] = "..."
-            if len(json.dumps(data)) > target_length:
-                 data["activities"] = []
-                 data["faqs"] = []
-                 data["travel_tips"] = []
-        elif current_len < target_length:
-            # pad introduction
-            padding = " " + ("Paris is beautiful. " * ((target_length - current_len) // 20 + 1))
-            data["introduction"] += padding
+    # Apply sanitization recursively
+    def sanitize_dict_or_list(obj):
+        if isinstance(obj, dict):
+            for k, v in obj.items():
+                obj[k] = sanitize_dict_or_list(v)
+            return obj
+        elif isinstance(obj, list):
+            return [sanitize_dict_or_list(i) for i in obj]
+        elif isinstance(obj, str):
+            return sanitize(obj)
+        else:
+            return obj
+            
+    data = sanitize_dict_or_list(data)
+
+    # Note: length adjustment by padding/truncation is skipped for arbitrary dynamic schemas,
+    # because we don't know which fields to pad/truncate. Lengths are now verified by verification.py.
 
     return data
 
@@ -234,13 +240,13 @@ def generate_completion(model_id: str, prompt: str, api_key: str, system_prompt:
             {"role": "user", "content": prompt}
         ],
         "temperature": 0.7,
-        "max_tokens": 4000,
+        "max_tokens": 8000,
         "response_format": {"type": "json_object"}
     }
 
     start_time = time.time()
     try:
-        response = requests.post(f"{OPENROUTER_BASE_URL}/chat/completions", headers=headers, json=payload, timeout=45)
+        response = requests.post(f"{OPENROUTER_BASE_URL}/chat/completions", headers=headers, json=payload, timeout=90)
         latency_ms = int((time.time() - start_time) * 1000)
 
         if response.status_code == 200:

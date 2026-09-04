@@ -1,23 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import { fetchHistory, fetchComparisonRuns } from '../services/api';
 import type { HistoryRun } from '../types';
-import { Check, Code, FileText, Eye, Layers, Clock, Cpu } from 'lucide-react';
+import { Check, Code, FileText, Eye, Layers, Clock, Cpu, DollarSign, ToggleLeft, ToggleRight } from 'lucide-react';
 import { RunDetailDrawer } from '../components/RunDetailDrawer';
-
-const ensureArray = (data: any) => {
-  if (!data) return [];
-  if (Array.isArray(data)) return data;
-  if (typeof data === 'object') {
-    return Object.entries(data).map(([k, v]) => ({
-      name: k, title: k, question: k,
-      description: typeof v === 'string' ? v : JSON.stringify(v),
-      highlights: typeof v === 'string' ? v : JSON.stringify(v),
-      answer: typeof v === 'string' ? v : JSON.stringify(v),
-      value: typeof v === 'string' ? v : JSON.stringify(v)
-    }));
-  }
-  return [data];
-};
 
 export const ModelComparisonPage: React.FC = () => {
   const [historyRuns, setHistoryRuns] = useState<HistoryRun[]>([]);
@@ -31,13 +16,21 @@ export const ModelComparisonPage: React.FC = () => {
 
   // Per-card view mode: 'formatted' or 'json'
   const [cardViewModes, setCardViewModes] = useState<{ [key: string]: 'formatted' | 'json' }>({});
+  const [headingStates, setHeadingStates] = useState<{ [key: string]: boolean }>({});
+
+  const toggleHeadingState = (cardId: string) => {
+    setHeadingStates(prev => ({ ...prev, [cardId]: !prev[cardId] }));
+  };
 
   useEffect(() => {
     fetchHistory()
       .then((data) => {
         setHistoryRuns(data);
         if (data.length > 0) {
-          setSelectedTestRunId(data[0].test_run_id);
+          const firstLang = data[0].language || 'English';
+          const idsForLang = data.filter((r: any) => (r.language || 'English') === firstLang).map((r: any) => r.test_run_id);
+          const uniqueIds = Array.from(new Set(idsForLang));
+          setSelectedTestRunId(uniqueIds.join(','));
         }
       })
       .catch((e) => console.error(e));
@@ -103,23 +96,30 @@ export const ModelComparisonPage: React.FC = () => {
             </p>
           </div>
           <div style={{ width: '260px' }}>
-            <label className="form-label" style={{ fontSize: '11px', color: '#64748B', marginBottom: '4px' }}>Select Test Run Context</label>
+            <label className="form-label" style={{ fontSize: '11px', color: '#64748B', marginBottom: '4px' }}>Select Language</label>
             <select
               className="select-input"
               value={selectedTestRunId}
               onChange={(e) => setSelectedTestRunId(e.target.value)}
               style={{ fontSize: '12px', padding: '8px 12px' }}
             >
-              {historyRuns.filter((v,i,a)=>a.findIndex(v2=>(v2.test_run_id===v.test_run_id))===i).map((r) => {
-                const dateStr = r.created_at ? new Date(r.created_at).toLocaleString() : 'Recent';
-                return (
-                  <option key={r.run_id} value={r.test_run_id}>
-                    {r.city}, {r.country} ({r.language || 'English'}) - {dateStr}
+              {(() => {
+                const languageGroups: Record<string, string[]> = {};
+                historyRuns.forEach(r => {
+                  const lang = r.language || 'English';
+                  if (!languageGroups[lang]) languageGroups[lang] = [];
+                  if (!languageGroups[lang].includes(r.test_run_id)) {
+                    languageGroups[lang].push(r.test_run_id);
+                  }
+                });
+                return Object.entries(languageGroups).map(([lang, ids]) => (
+                  <option key={lang} value={ids.join(',')}>
+                    {lang}
                   </option>
-                );
-              })}
+                ));
+              })()}
               {historyRuns.length === 0 && (
-                <option value="default">Paris, France (paris.json)</option>
+                <option value="default">English</option>
               )}
             </select>
           </div>
@@ -197,7 +197,10 @@ export const ModelComparisonPage: React.FC = () => {
                         <Clock size={12} color="#8B5CF6" /> {((gen.latency_ms || 14500) / 1000).toFixed(1)}s
                       </span>
                       <span style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
-                        <Cpu size={12} color="#0284C7" /> {gen.total_tokens || 4200} tokens
+                        <Cpu size={12} color="#0284C7" /> {gen.total_tokens || 4200}
+                      </span>
+                      <span style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+                        <DollarSign size={12} color="#10B981" /> ${(gen.cost || 0).toFixed(4)}
                       </span>
                     </div>
                   </div>
@@ -214,8 +217,12 @@ export const ModelComparisonPage: React.FC = () => {
 
       {/* 3. Side-by-Side Structured Output Display (Only shown when models are selected and compare clicked!) */}
       {comparedModels.length > 0 ? (
-        <div style={{ display: 'grid', gridTemplateColumns: `repeat(auto-fit, minmax(340px, 1fr))`, gap: '20px' }}>
-          {comparedModels.map((item, idx) => {
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '0 4px' }}>
+            <h3 style={{ fontSize: '18px', fontWeight: 800, color: '#0F172A', margin: 0 }}>Side-by-Side Comparison</h3>
+          </div>
+          <div style={{ display: 'grid', gridTemplateColumns: `repeat(auto-fit, minmax(340px, 1fr))`, gap: '20px' }}>
+            {comparedModels.map((item, idx) => {
             const gen = item.generation || item;
             const cardId = gen.id || `gen-${idx}`;
             const tint = cardTints[idx % cardTints.length];
@@ -249,10 +256,23 @@ export const ModelComparisonPage: React.FC = () => {
                     </span>
                   </div>
 
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '12px', fontSize: '12px', color: tint.text, opacity: 0.8, marginBottom: '16px' }}>
+                    <span style={{ display: 'flex', alignItems: 'center', gap: '4px' }} title="Latency">
+                      <Clock size={14} /> {((gen.latency_ms || 14500) / 1000).toFixed(1)}s
+                    </span>
+                    <span style={{ display: 'flex', alignItems: 'center', gap: '4px' }} title="Tokens">
+                      <Cpu size={14} /> {gen.total_tokens || 4200}
+                    </span>
+                    <span style={{ display: 'flex', alignItems: 'center', gap: '4px' }} title="Cost">
+                      <DollarSign size={14} /> ${(gen.cost || 0).toFixed(4)}
+                    </span>
+                  </div>
+
                   {/* Mode Switcher Buttons */}
-                  <div style={{ display: 'flex', gap: '6px' }}>
-                    <button
-                      onClick={() => toggleViewMode(cardId, 'formatted')}
+                  <div style={{ display: 'flex', gap: '6px', justifyContent: 'space-between', alignItems: 'center' }}>
+                    <div style={{ display: 'flex', gap: '6px' }}>
+                      <button
+                        onClick={() => toggleViewMode(cardId, 'formatted')}
                       style={{
                         padding: '4px 10px',
                         borderRadius: '6px',
@@ -288,7 +308,19 @@ export const ModelComparisonPage: React.FC = () => {
                       }}
                     >
                       <Code size={12} /> Output JSON
-                    </button>
+                      </button>
+                    </div>
+                    {viewMode === 'formatted' && (
+                      <label style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '12px', color: '#334155', cursor: 'pointer', fontWeight: 800 }}>
+                        <input 
+                          type="checkbox" 
+                          checked={!!headingStates[cardId]} 
+                          onChange={() => toggleHeadingState(cardId)} 
+                          style={{ width: '14px', height: '14px', accentColor: tint.btnColor, cursor: 'pointer', margin: 0 }} 
+                        />
+                        Show Headings
+                      </label>
+                    )}
                   </div>
                 </div>
 
@@ -296,85 +328,128 @@ export const ModelComparisonPage: React.FC = () => {
                 <div style={{ padding: '18px 20px', flex: 1, fontSize: '13px', color: '#334155', height: '380px', overflowY: 'auto' }}>
                   {viewMode === 'formatted' ? (
                     <div>
-                      {/* Title */}
-                      <h4 style={{ fontSize: '15px', fontWeight: 800, color: '#0F172A', marginBottom: '8px' }}>
-                        {outJson.title || 'Paris Travel Guide'}
-                      </h4>
+                      {(() => {
+                        let orderedKeys = Object.keys(outJson);
+                        try {
+                          const schemaStr = item.prompt_config?.target_schema;
+                          if (schemaStr) {
+                            try {
+                              const parsedSchema = JSON.parse(schemaStr);
+                              const schemaKeys = Object.keys(parsedSchema);
+                              const extraKeys = orderedKeys.filter(k => !schemaKeys.includes(k));
+                              orderedKeys = [...schemaKeys.filter(k => orderedKeys.includes(k)), ...extraKeys];
+                            } catch (e) {
+                              // Not a valid JSON, sort by index of appearance in the string
+                              const lowerSchema = schemaStr.toLowerCase();
+                              orderedKeys.sort((a, b) => {
+                                const idxA = lowerSchema.indexOf(a.toLowerCase());
+                                const idxB = lowerSchema.indexOf(b.toLowerCase());
+                                if (idxA !== -1 && idxB !== -1) return idxA - idxB;
+                                if (idxA !== -1) return -1;
+                                if (idxB !== -1) return 1;
+                                return 0;
+                              });
+                            }
+                          }
+                        } catch (e) {
+                          // Fallback to outJson keys if schema parsing fails
+                        }
 
-                      {/* Introduction */}
-                      <div style={{ marginBottom: '14px' }}>
-                        <strong style={{ fontSize: '11px', textTransform: 'uppercase', color: '#64748B', display: 'block', marginBottom: '4px' }}>Introduction</strong>
-                        <p style={{ fontSize: '12px', color: '#475569', lineHeight: '1.6' }}>
-                          {outJson.introduction || 'Paris is a city that blends history, culture, and art.'}
-                        </p>
-                      </div>
+                        return orderedKeys.map((key, i) => {
+                          const val = outJson[key];
+                          if (val === undefined || val === null) return null;
+                          
+                          const title = key.replace(/_/g, ' ').toUpperCase();
+                          
+                          // Handle simple string/number
+                          if (typeof val === 'string' || typeof val === 'number') {
+                          return (
+                            <div key={i} style={{ marginBottom: '14px' }}>
+                              {headingStates[cardId] && <strong style={{ fontSize: '11px', textTransform: 'uppercase', color: '#64748B', display: 'block', marginBottom: '4px' }}>{title}</strong>}
+                              <p style={{ fontSize: '12px', color: '#475569', lineHeight: '1.6', whiteSpace: 'pre-wrap' }}>{val}</p>
+                            </div>
+                          );
+                        }
 
-                      {/* Attractions */}
-                      {outJson.attractions && (
-                        <div style={{ marginBottom: '14px' }}>
-                          <strong style={{ fontSize: '11px', textTransform: 'uppercase', color: '#64748B', display: 'block', marginBottom: '4px' }}>Attractions</strong>
-                          <ul style={{ paddingLeft: '16px', fontSize: '12px', color: '#334155' }}>
-                            {ensureArray(outJson.attractions).map((att: any, i: number) => (
-                              <li key={i} style={{ marginBottom: '4px' }}>
-                                <strong>{att.title || att.name}</strong>: {att.description || att.highlights}
-                              </li>
-                            ))}
-                          </ul>
-                        </div>
-                      )}
+                        // Handle Array
+                        if (Array.isArray(val)) {
+                           return (
+                             <div key={i} style={{ marginBottom: '14px' }}>
+                               {headingStates[cardId] && <strong style={{ fontSize: '11px', textTransform: 'uppercase', color: '#64748B', display: 'block', marginBottom: '4px' }}>{title}</strong>}
+                               <ul style={{ paddingLeft: '16px', fontSize: '12px', color: '#334155' }}>
+                                 {val.map((arrItem: any, j: number) => {
+                                    if (typeof arrItem === 'string') {
+                                      return <li key={j} style={{ marginBottom: '4px' }}>{arrItem}</li>;
+                                    } else if (arrItem && typeof arrItem === 'object') {
+                                      return (
+                                        <li key={j} style={{ marginBottom: '6px' }}>
+                                          {Object.keys(arrItem).sort((a, b) => {
+                                            try {
+                                              const schemaStr = item?.prompt_config?.target_schema || item?.test_run?.input_json?.__target_schema__;
+                                              if (!schemaStr) return 0;
+                                              const lowerSchema = schemaStr.toLowerCase();
+                                              const idxA = lowerSchema.indexOf(a.toLowerCase());
+                                              const idxB = lowerSchema.indexOf(b.toLowerCase());
+                                              if (idxA !== -1 && idxB !== -1) return idxA - idxB;
+                                              if (idxA !== -1) return -1;
+                                              if (idxB !== -1) return 1;
+                                            } catch(e) {}
+                                            return 0;
+                                          }).map((k) => (
+                                            <div key={k}>
+                                              {headingStates[cardId] && <strong>{k.replace(/_/g, ' ').toUpperCase()}: </strong>}
+                                              {arrItem[k]}
+                                            </div>
+                                          ))}
+                                        </li>
+                                      );
+                                    }
+                                    return <li key={j}>{JSON.stringify(arrItem)}</li>;
+                                 })}
+                               </ul>
+                             </div>
+                           );
+                        }
 
-                      {/* Activities */}
-                      {outJson.activities && (
-                        <div style={{ marginBottom: '14px' }}>
-                          <strong style={{ fontSize: '11px', textTransform: 'uppercase', color: '#64748B', display: 'block', marginBottom: '4px' }}>Activities</strong>
-                          <div style={{ display: 'flex', flexWrap: 'wrap', gap: '4px' }}>
-                            {ensureArray(outJson.activities).map((act: any, i: number) => (
-                              <span key={i} style={{ backgroundColor: '#F1F5F9', padding: '3px 8px', borderRadius: '4px', fontSize: '11px' }}>
-                                🎯 {typeof act === 'string' ? act : (act.value || act.name || JSON.stringify(act))}
-                              </span>
-                            ))}
-                          </div>
-                        </div>
-                      )}
-
-                      {/* Best Time to Visit */}
-                      {outJson.best_time_to_visit && (
-                        <div style={{ marginBottom: '14px' }}>
-                          <strong style={{ fontSize: '11px', textTransform: 'uppercase', color: '#64748B', display: 'block', marginBottom: '4px' }}>Best Time to Visit</strong>
-                          <p style={{ fontSize: '12px', color: '#475569' }}>
-                            {typeof outJson.best_time_to_visit === 'string' ? outJson.best_time_to_visit : JSON.stringify(outJson.best_time_to_visit)}
-                          </p>
-                        </div>
-                      )}
-
-                      {/* Travel Tips */}
-                      {outJson.travel_tips && (
-                        <div style={{ marginBottom: '14px' }}>
-                          <strong style={{ fontSize: '11px', textTransform: 'uppercase', color: '#64748B', display: 'block', marginBottom: '4px' }}>Travel Tips</strong>
-                          <ul style={{ paddingLeft: '16px', fontSize: '12px', color: '#475569' }}>
-                            {ensureArray(outJson.travel_tips).map((tip: any, i: number) => (
-                              <li key={i} style={{ marginBottom: '4px' }}>
-                                💡 {typeof tip === 'string' ? tip : (tip.value || tip.name || JSON.stringify(tip))}
-                              </li>
-                            ))}
-                          </ul>
-                        </div>
-                      )}
-
-                      {/* FAQs */}
-                      {outJson.faqs && (
-                        <div>
-                          <strong style={{ fontSize: '11px', textTransform: 'uppercase', color: '#64748B', display: 'block', marginBottom: '4px' }}>FAQs</strong>
-                          <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
-                            {ensureArray(outJson.faqs).map((faq: any, i: number) => (
-                              <div key={i} style={{ backgroundColor: '#F8FAFC', padding: '8px 10px', borderRadius: '6px' }}>
-                                <strong style={{ fontSize: '12px', display: 'block', marginBottom: '2px' }}>Q: {faq.question || faq.title || faq.name}</strong>
-                                <span style={{ fontSize: '11px', color: '#475569' }}>A: {faq.answer || faq.description || faq.value}</span>
-                              </div>
-                            ))}
-                          </div>
-                        </div>
-                      )}
+                        // Handle Object
+                        if (typeof val === 'object') {
+                           return (
+                             <div key={i} style={{ marginBottom: '14px' }}>
+                               {headingStates[cardId] && <strong style={{ fontSize: '11px', textTransform: 'uppercase', color: '#64748B', display: 'block', marginBottom: '4px' }}>{title}</strong>}
+                               <div style={{ backgroundColor: '#F8FAFC', padding: '10px', borderRadius: '6px' }}>
+                                 {Object.keys(val).sort((a, b) => {
+                                   try {
+                                     const schemaStr = item.prompt_config?.target_schema || item.test_run?.input_json?.__target_schema__;
+                                     if (!schemaStr) return 0;
+                                     const lowerSchema = schemaStr.toLowerCase();
+                                     const idxA = lowerSchema.indexOf(a.toLowerCase());
+                                     const idxB = lowerSchema.indexOf(b.toLowerCase());
+                                     if (idxA !== -1 && idxB !== -1) return idxA - idxB;
+                                     if (idxA !== -1) return -1;
+                                     if (idxB !== -1) return 1;
+                                   } catch(e) {}
+                                   return 0;
+                                 }).map((k) => {
+                                    const nestedVal = val[k];
+                                    return (
+                                      <div key={k} style={{ marginBottom: '6px' }}>
+                                        {headingStates[cardId] && <strong style={{ fontSize: '12px', color: '#0F172A' }}>{k.replace(/_/g, ' ').toUpperCase()}: </strong>}
+                                        <span style={{ fontSize: '12px', color: '#475569', marginLeft: '4px' }}>
+                                          {typeof nestedVal === 'string' || typeof nestedVal === 'number' 
+                                            ? nestedVal 
+                                            : JSON.stringify(nestedVal)}
+                                        </span>
+                                      </div>
+                                    );
+                                 })}
+                               </div>
+                             </div>
+                           );
+                        }
+                        
+                        return null;
+                        });
+                      })()}
                     </div>
                   ) : (
                     <pre style={{ backgroundColor: '#0F172A', color: '#E2E8F0', padding: '12px', borderRadius: '8px', fontSize: '11px', fontFamily: 'monospace', whiteSpace: 'pre-wrap' }}>
@@ -405,6 +480,7 @@ export const ModelComparisonPage: React.FC = () => {
               </div>
             );
           })}
+          </div>
         </div>
       ) : (
         <div className="card" style={{ padding: '48px 24px', textAlign: 'center', border: '2px dashed #CBD5E1', backgroundColor: '#F8FAFC' }}>
