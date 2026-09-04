@@ -1,3 +1,4 @@
+import { CustomDropdown } from "../components/CustomDropdown";
 import React, { useState, useEffect } from 'react';
 import { fetchHistory, fetchComparisonRuns } from '../services/api';
 import type { HistoryRun } from '../types';
@@ -97,13 +98,8 @@ export const ModelComparisonPage: React.FC = () => {
           </div>
           <div style={{ width: '260px' }}>
             <label className="form-label" style={{ fontSize: '11px', color: '#64748B', marginBottom: '4px' }}>Select Language</label>
-            <select
-              className="select-input"
-              value={selectedTestRunId}
-              onChange={(e) => setSelectedTestRunId(e.target.value)}
-              style={{ fontSize: '12px', padding: '8px 12px' }}
-            >
-              {(() => {
+            <CustomDropdown
+              options={(() => {
                 const languageGroups: Record<string, string[]> = {};
                 historyRuns.forEach(r => {
                   const lang = r.language || 'English';
@@ -112,16 +108,17 @@ export const ModelComparisonPage: React.FC = () => {
                     languageGroups[lang].push(r.test_run_id);
                   }
                 });
-                return Object.entries(languageGroups).map(([lang, ids]) => (
-                  <option key={lang} value={ids.join(',')}>
-                    {lang}
-                  </option>
-                ));
+                const opts = Object.entries(languageGroups).map(([lang, ids]) => ({
+                  value: ids.join(','),
+                  label: lang
+                }));
+                if (opts.length === 0) opts.push({ value: 'default', label: 'English' });
+                return opts;
               })()}
-              {historyRuns.length === 0 && (
-                <option value="default">English</option>
-              )}
-            </select>
+              selectedValue={selectedTestRunId}
+              setSelectedValue={setSelectedTestRunId}
+              placeholder="Select Language"
+            />
           </div>
         </div>
 

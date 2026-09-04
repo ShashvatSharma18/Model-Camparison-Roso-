@@ -1,3 +1,4 @@
+import { CustomDropdown } from "../components/CustomDropdown";
 import React, { useState, useEffect } from 'react';
 import { fetchHistory } from '../services/api';
 import type { HistoryRun } from '../types';
@@ -50,20 +51,32 @@ export const HistoryPage: React.FC = () => {
           </div>
 
           {/* Model Filter */}
-          <select className="select-input" value={modelFilter} onChange={(e) => setModelFilter(e.target.value)} style={{ width: '180px' }}>
-            <option value="All Models">All Models ({history.length})</option>
-            {uniqueModels.map((m) => (
-              <option key={m} value={m}>{m}</option>
-            ))}
-          </select>
+          <div style={{ width: '180px' }}>
+            <CustomDropdown
+              options={[
+                { value: 'All Models', label: `All Models (${history.length})` },
+                ...uniqueModels.map(m => ({ value: m, label: m }))
+              ]}
+              selectedValue={modelFilter}
+              setSelectedValue={setModelFilter}
+              placeholder="All Models"
+            />
+          </div>
 
           {/* Status Filter */}
-          <select className="select-input" value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)} style={{ width: '140px' }}>
-            <option value="All Status">All Status</option>
-            <option value="Verified">Verified</option>
-            <option value="Regenerated">Regenerated</option>
-            <option value="Failed">Failed</option>
-          </select>
+          <div style={{ width: '140px' }}>
+            <CustomDropdown
+              options={[
+                { value: 'All Status', label: 'All Status' },
+                { value: 'Verified', label: 'Verified' },
+                { value: 'Regenerated', label: 'Regenerated' },
+                { value: 'Failed', label: 'Failed' }
+              ]}
+              selectedValue={statusFilter}
+              setSelectedValue={setStatusFilter}
+              placeholder="All Status"
+            />
+          </div>
         </div>
       </div>
 

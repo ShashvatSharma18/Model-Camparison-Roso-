@@ -1,3 +1,4 @@
+import { CustomDropdown } from "../components/CustomDropdown";
 import React, { useState, useEffect } from 'react';
 import { fetchSettings, updateSettings, fetchModels } from '../services/api';
 import type { ModelInfo, AppSettings } from '../types';
@@ -47,17 +48,12 @@ export const SettingsPage: React.FC = () => {
         <div className="card-title">Dedicated Verifier Model</div>
         <div className="form-group">
           <label className="form-label">Verifier Model (Evaluates Tone, Audience, Style, Instructions consistently)</label>
-          <select
-            className="select-input"
-            value={settings.verifier_model_id}
-            onChange={(e) => setSettings({ ...settings, verifier_model_id: e.target.value })}
-          >
-            {models.map((m) => (
-              <option key={m.id} value={m.id}>
-                {m.name} ({m.id})
-              </option>
-            ))}
-          </select>
+          <CustomDropdown
+            options={models.map(m => ({ value: m.id, label: `${m.name} (${m.id})` }))}
+            selectedValue={settings.verifier_model_id}
+            setSelectedValue={(v) => setSettings({ ...settings, verifier_model_id: v })}
+            placeholder="Select Verifier Model"
+          />
         </div>
       </div>
 
@@ -126,27 +122,30 @@ export const SettingsPage: React.FC = () => {
 
         <div className="form-group">
           <label className="form-label">Regeneration Strategy</label>
-          <select
-            className="select-input"
-            value={settings.regeneration_strategy}
-            onChange={(e) => setSettings({ ...settings, regeneration_strategy: e.target.value })}
-          >
-            <option value="update_failed_sections">Update Only Failed Sections (Field-Grouped)</option>
-            <option value="full_rebuild">Full Content Rebuild</option>
-          </select>
+          <CustomDropdown
+            options={[
+              { value: 'update_failed_sections', label: 'Update Only Failed Sections (Field-Grouped)' },
+              { value: 'full_rebuild', label: 'Full Content Rebuild' }
+            ]}
+            selectedValue={settings.regeneration_strategy}
+            setSelectedValue={(v) => setSettings({ ...settings, regeneration_strategy: v })}
+            placeholder="Select Strategy"
+          />
         </div>
 
         <div className="form-group">
           <label className="form-label">Field Matching Strictness</label>
-          <select
-            className="select-input"
-            value={settings.field_matching_strictness}
-            onChange={(e) => setSettings({ ...settings, field_matching_strictness: e.target.value })}
-          >
-            <option value="strict">Strict</option>
-            <option value="medium">Medium</option>
-            <option value="relaxed">Relaxed</option>
-          </select>
+          <CustomDropdown
+            options={[
+              { value: 'strict', label: 'Strict' },
+              { value: 'medium', label: 'Medium' },
+              { value: 'relaxed', label: 'Relaxed' }
+            ]}
+            selectedValue={settings.field_matching_strictness}
+            setSelectedValue={(v) => setSettings({ ...settings, field_matching_strictness: v })}
+            placeholder="Select Strictness"
+            direction="up"
+          />
         </div>
       </div>
 
