@@ -739,14 +739,14 @@ ${targetSchema}`);
                 </div>
 
                 {failedParameters.length > 0 && (
-                  <button
-                    className="btn-primary"
-                    style={{ background: 'linear-gradient(135deg, #D97706 0%, #B45309 100%)', width: '100%', padding: '12px' }}
+                  <button 
+                    className="btn-primary" 
+                    style={{ background: 'linear-gradient(135deg, #D97706 0%, #B45309 100%)', width: '100%', padding: '12px', opacity: verificationAttempt >= 3 ? 0.6 : 1, cursor: verificationAttempt >= 3 ? 'not-allowed' : 'pointer' }}
                     onClick={handleRegenerateFailed}
-                    disabled={regenerating}
+                    disabled={regenerating || verificationAttempt >= 3}
                   >
                     <RefreshCw size={16} />
-                    <span>{regenerating ? 'Regenerating Failed Parameters...' : 'Regenerate Failed Parameters'}</span>
+                    <span>{regenerating ? 'Regenerating Failed Parameters...' : (verificationAttempt >= 3 ? 'Regeneration Limit Reached (Max 3)' : 'Regenerate Failed Parameters')}</span>
                   </button>
                 )}
               </div>

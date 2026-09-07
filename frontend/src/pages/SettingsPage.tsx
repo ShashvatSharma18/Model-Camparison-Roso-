@@ -117,14 +117,9 @@ export const SettingsPage: React.FC = () => {
             Update Only Failed Sections (Targeted Regeneration)
           </div>
         </div>
-
-        <div className="form-group">
-          <label className="form-label">Field Matching Strictness (Currently Active)</label>
-          <div style={{ padding: '10px 14px', backgroundColor: '#F8FAFC', borderRadius: '8px', border: '1px solid #E2E8F0', color: '#475569', fontSize: '14px', fontWeight: 500 }}>
-            Strict
-          </div>
-        </div>
       </div>
+
+
 
       <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
         <button className="btn-primary" onClick={handleSave} disabled={saving}>

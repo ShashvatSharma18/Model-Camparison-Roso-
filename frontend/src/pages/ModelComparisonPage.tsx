@@ -2,7 +2,7 @@ import { CustomDropdown } from "../components/CustomDropdown";
 import React, { useState, useEffect } from 'react';
 import { fetchHistory, fetchComparisonRuns } from '../services/api';
 import type { HistoryRun } from '../types';
-import { Check, Code, FileText, Eye, Layers, Clock, Cpu, DollarSign } from 'lucide-react';
+import { Check, Code, FileText, Eye, Layers, Clock, Cpu, DollarSign, Calendar } from 'lucide-react';
 import { RunDetailDrawer } from '../components/RunDetailDrawer';
 
 export const ModelComparisonPage: React.FC = () => {
@@ -15,12 +15,14 @@ export const ModelComparisonPage: React.FC = () => {
   const [comparedModels, setComparedModels] = useState<any[]>([]);
   const [activeDrawerRunId, setActiveDrawerRunId] = useState<string | null>(null);
 
-  // Per-card view mode: 'formatted' or 'json'
-  const [cardViewModes, setCardViewModes] = useState<{ [key: string]: 'formatted' | 'json' }>({});
-  const [headingStates, setHeadingStates] = useState<{ [key: string]: boolean }>({});
+  // Global view mode for comparison cards
+  const [globalViewMode, setGlobalViewMode] = useState<'formatted' | 'json'>('formatted');
+  const [globalShowHeadings, setGlobalShowHeadings] = useState<boolean>(false);
 
-  const toggleHeadingState = (cardId: string) => {
-    setHeadingStates(prev => ({ ...prev, [cardId]: !prev[cardId] }));
+  const formatDateTime = (isoString?: string) => {
+    if (!isoString) return '';
+    const d = new Date(isoString);
+    return d.toLocaleString('en-US', { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit', hour12: true });
   };
 
   useEffect(() => {
@@ -48,6 +50,12 @@ export const ModelComparisonPage: React.FC = () => {
             const out = g.output_json || {};
             return (status === 'verified' || status === 'regenerated' || status === 'pass') && !out.error;
           });
+          // Sort by latest first
+          validRuns.sort((a: any, b: any) => {
+            const dateA = new Date((a.generation || a).created_at || 0).getTime();
+            const dateB = new Date((b.generation || b).created_at || 0).getTime();
+            return dateB - dateA;
+          });
           setAllComparisonRuns(validRuns);
           setSelectedGenIds([]);
           setComparedModels([]);
@@ -70,10 +78,6 @@ export const ModelComparisonPage: React.FC = () => {
       return selectedGenIds.includes(g.id);
     });
     setComparedModels(selected);
-  };
-
-  const toggleViewMode = (cardId: string, mode: 'formatted' | 'json') => {
-    setCardViewModes((prev) => ({ ...prev, [cardId]: mode }));
   };
 
   // Color tint schemes for headers matching reference screenshot
@@ -190,6 +194,9 @@ export const ModelComparisonPage: React.FC = () => {
                     </div>
 
                     <div style={{ display: 'flex', alignItems: 'center', gap: '12px', fontSize: '11px', color: '#64748B', borderTop: '1px solid #E2E8F0', paddingTop: '10px' }}>
+                      <span style={{ display: 'flex', alignItems: 'center', gap: '4px' }} title="Date">
+                        <Calendar size={12} color="#F59E0B" /> {formatDateTime(gen.created_at) || 'Unknown Time'}
+                      </span>
                       <span style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
                         <Clock size={12} color="#8B5CF6" /> {((gen.latency_ms || 14500) / 1000).toFixed(1)}s
                       </span>
@@ -216,7 +223,34 @@ export const ModelComparisonPage: React.FC = () => {
       {comparedModels.length > 0 ? (
         <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '0 4px' }}>
-            <h3 style={{ fontSize: '18px', fontWeight: 800, color: '#0F172A', margin: 0 }}>Side-by-Side Comparison</h3>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
+              <h3 style={{ fontSize: '18px', fontWeight: 800, color: '#0F172A', margin: 0 }}>Side-by-Side Comparison</h3>
+              {globalViewMode === 'formatted' && (
+                <label style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '12px', color: '#334155', cursor: 'pointer', fontWeight: 800 }}>
+                  <input 
+                    type="checkbox" 
+                    checked={globalShowHeadings} 
+                    onChange={() => setGlobalShowHeadings(!globalShowHeadings)} 
+                    style={{ width: '14px', height: '14px', accentColor: '#2563EB', cursor: 'pointer', margin: 0 }} 
+                  />
+                  Show Headings
+                </label>
+              )}
+            </div>
+            <div style={{ display: 'flex', backgroundColor: '#F1F5F9', padding: '4px', borderRadius: '8px', gap: '4px' }}>
+              <button
+                style={globalViewMode === 'formatted' ? { backgroundColor: '#FFFFFF', boxShadow: '0 1px 3px rgba(0,0,0,0.1)', color: '#0F172A', border: 'none', padding: '6px 12px', borderRadius: '6px', fontSize: '12px', fontWeight: 600, display: 'flex', alignItems: 'center', gap: '6px', cursor: 'pointer' } : { color: '#64748B', backgroundColor: 'transparent', border: 'none', padding: '6px 12px', borderRadius: '6px', fontSize: '12px', fontWeight: 600, display: 'flex', alignItems: 'center', gap: '6px', cursor: 'pointer' }}
+                onClick={() => setGlobalViewMode('formatted')}
+              >
+                <FileText size={14} /> Formatted Output
+              </button>
+              <button
+                style={globalViewMode === 'json' ? { backgroundColor: '#FFFFFF', boxShadow: '0 1px 3px rgba(0,0,0,0.1)', color: '#0F172A', border: 'none', padding: '6px 12px', borderRadius: '6px', fontSize: '12px', fontWeight: 600, display: 'flex', alignItems: 'center', gap: '6px', cursor: 'pointer' } : { color: '#64748B', backgroundColor: 'transparent', border: 'none', padding: '6px 12px', borderRadius: '6px', fontSize: '12px', fontWeight: 600, display: 'flex', alignItems: 'center', gap: '6px', cursor: 'pointer' }}
+                onClick={() => setGlobalViewMode('json')}
+              >
+                <Code size={14} /> JSON Schema
+              </button>
+            </div>
           </div>
           <div style={{ display: 'grid', gridTemplateColumns: `repeat(auto-fit, minmax(340px, 1fr))`, gap: '20px' }}>
             {comparedModels.map((item, idx) => {
@@ -224,7 +258,7 @@ export const ModelComparisonPage: React.FC = () => {
             const cardId = gen.id || `gen-${idx}`;
             const tint = cardTints[idx % cardTints.length];
             const outJson = gen.output_json || {};
-            const viewMode = cardViewModes[cardId] || 'formatted';
+            const viewMode = globalViewMode;
 
             return (
               <div
@@ -252,8 +286,10 @@ export const ModelComparisonPage: React.FC = () => {
                       {gen.status || 'Verified'}
                     </span>
                   </div>
-
                   <div style={{ display: 'flex', alignItems: 'center', gap: '12px', fontSize: '12px', color: tint.text, opacity: 0.8, marginBottom: '16px' }}>
+                    <span style={{ display: 'flex', alignItems: 'center', gap: '4px' }} title="Date">
+                      <Calendar size={14} /> {formatDateTime(gen.created_at) || 'Unknown'}
+                    </span>
                     <span style={{ display: 'flex', alignItems: 'center', gap: '4px' }} title="Latency">
                       <Clock size={14} /> {((gen.latency_ms || 14500) / 1000).toFixed(1)}s
                     </span>
@@ -265,59 +301,29 @@ export const ModelComparisonPage: React.FC = () => {
                     </span>
                   </div>
 
-                  {/* Mode Switcher Buttons */}
                   <div style={{ display: 'flex', gap: '6px', justifyContent: 'space-between', alignItems: 'center' }}>
-                    <div style={{ display: 'flex', gap: '6px' }}>
-                      <button
-                        onClick={() => toggleViewMode(cardId, 'formatted')}
-                      style={{
-                        padding: '4px 10px',
-                        borderRadius: '6px',
-                        border: '1px solid',
-                        borderColor: viewMode === 'formatted' ? tint.btnColor : '#CBD5E1',
-                        fontSize: '11px',
-                        fontWeight: 700,
-                        backgroundColor: viewMode === 'formatted' ? '#FFFFFF' : 'transparent',
-                        color: viewMode === 'formatted' ? tint.btnColor : '#64748B',
-                        cursor: 'pointer',
-                        display: 'inline-flex',
-                        alignItems: 'center',
-                        gap: '4px'
-                      }}
-                    >
-                      <FileText size={12} /> Formatted Structure
-                    </button>
                     <button
-                      onClick={() => toggleViewMode(cardId, 'json')}
+                      onClick={() => setActiveDrawerRunId(gen.id)}
                       style={{
-                        padding: '4px 10px',
+                        padding: '6px 12px',
                         borderRadius: '6px',
-                        border: '1px solid',
-                        borderColor: viewMode === 'json' ? tint.btnColor : '#CBD5E1',
-                        fontSize: '11px',
+                        border: 'none',
+                        fontSize: '12px',
                         fontWeight: 700,
-                        backgroundColor: viewMode === 'json' ? '#FFFFFF' : 'transparent',
-                        color: viewMode === 'json' ? tint.btnColor : '#64748B',
+                        backgroundColor: tint.btnColor,
+                        color: '#FFFFFF',
                         cursor: 'pointer',
                         display: 'inline-flex',
                         alignItems: 'center',
-                        gap: '4px'
+                        gap: '6px',
+                        boxShadow: '0 2px 4px rgba(0,0,0,0.1)',
+                        transition: 'opacity 0.2s',
                       }}
+                      onMouseOver={(e) => (e.currentTarget.style.opacity = '0.9')}
+                      onMouseOut={(e) => (e.currentTarget.style.opacity = '1')}
                     >
-                      <Code size={12} /> Output JSON
-                      </button>
-                    </div>
-                    {viewMode === 'formatted' && (
-                      <label style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '12px', color: '#334155', cursor: 'pointer', fontWeight: 800 }}>
-                        <input 
-                          type="checkbox" 
-                          checked={!!headingStates[cardId]} 
-                          onChange={() => toggleHeadingState(cardId)} 
-                          style={{ width: '14px', height: '14px', accentColor: tint.btnColor, cursor: 'pointer', margin: 0 }} 
-                        />
-                        Show Headings
-                      </label>
-                    )}
+                      <Eye size={14} /> Deep Dive Analysis
+                    </button>
                   </div>
                 </div>
 
@@ -362,7 +368,7 @@ export const ModelComparisonPage: React.FC = () => {
                           if (typeof val === 'string' || typeof val === 'number') {
                           return (
                             <div key={i} style={{ marginBottom: '14px' }}>
-                              {headingStates[cardId] && <strong style={{ fontSize: '11px', textTransform: 'uppercase', color: '#64748B', display: 'block', marginBottom: '4px' }}>{title}</strong>}
+                              {globalShowHeadings && <strong style={{ fontSize: '11px', textTransform: 'uppercase', color: '#64748B', display: 'block', marginBottom: '4px' }}>{title}</strong>}
                               <p style={{ fontSize: '12px', color: '#475569', lineHeight: '1.6', whiteSpace: 'pre-wrap' }}>{val}</p>
                             </div>
                           );
@@ -372,7 +378,7 @@ export const ModelComparisonPage: React.FC = () => {
                         if (Array.isArray(val)) {
                            return (
                              <div key={i} style={{ marginBottom: '14px' }}>
-                               {headingStates[cardId] && <strong style={{ fontSize: '11px', textTransform: 'uppercase', color: '#64748B', display: 'block', marginBottom: '4px' }}>{title}</strong>}
+                               {globalShowHeadings && <strong style={{ fontSize: '11px', textTransform: 'uppercase', color: '#64748B', display: 'block', marginBottom: '4px' }}>{title}</strong>}
                                <ul style={{ paddingLeft: '16px', fontSize: '12px', color: '#334155' }}>
                                  {val.map((arrItem: any, j: number) => {
                                     if (typeof arrItem === 'string') {
@@ -394,7 +400,7 @@ export const ModelComparisonPage: React.FC = () => {
                                             return 0;
                                           }).map((k) => (
                                             <div key={k}>
-                                              {headingStates[cardId] && <strong>{k.replace(/_/g, ' ').toUpperCase()}: </strong>}
+                                              {globalShowHeadings && <strong>{k.replace(/_/g, ' ').toUpperCase()}: </strong>}
                                               {arrItem[k]}
                                             </div>
                                           ))}
@@ -412,7 +418,7 @@ export const ModelComparisonPage: React.FC = () => {
                         if (typeof val === 'object') {
                            return (
                              <div key={i} style={{ marginBottom: '14px' }}>
-                               {headingStates[cardId] && <strong style={{ fontSize: '11px', textTransform: 'uppercase', color: '#64748B', display: 'block', marginBottom: '4px' }}>{title}</strong>}
+                               {globalShowHeadings && <strong style={{ fontSize: '11px', textTransform: 'uppercase', color: '#64748B', display: 'block', marginBottom: '4px' }}>{title}</strong>}
                                <div style={{ backgroundColor: '#F8FAFC', padding: '10px', borderRadius: '6px' }}>
                                  {Object.keys(val).sort((a, b) => {
                                    try {
@@ -430,7 +436,7 @@ export const ModelComparisonPage: React.FC = () => {
                                     const nestedVal = val[k];
                                     return (
                                       <div key={k} style={{ marginBottom: '6px' }}>
-                                        {headingStates[cardId] && <strong style={{ fontSize: '12px', color: '#0F172A' }}>{k.replace(/_/g, ' ').toUpperCase()}: </strong>}
+                                        {globalShowHeadings && <strong style={{ fontSize: '12px', color: '#0F172A' }}>{k.replace(/_/g, ' ').toUpperCase()}: </strong>}
                                         <span style={{ fontSize: '12px', color: '#475569', marginLeft: '4px' }}>
                                           {typeof nestedVal === 'string' || typeof nestedVal === 'number' 
                                             ? nestedVal 
