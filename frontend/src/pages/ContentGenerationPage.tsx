@@ -92,13 +92,29 @@ export const ContentGenerationPage: React.FC = () => {
     "description": "Highlight bullet",
     "character_length": "<= 85 chars"
   },
-  "faq": {
-    "question": "Write a relevant FAQ question",
-    "answer": {
-      "description": "Write the detailed answer for the question",
-      "character_length": "220-350 chars"
+  "faq": [
+    {
+      "question": "Write the first relevant FAQ question",
+      "answer": {
+        "description": "Write the detailed answer for the question",
+        "character_length": "220-350 chars"
+      }
+    },
+    {
+      "question": "Write the second relevant FAQ question",
+      "answer": {
+        "description": "Write the detailed answer for the question",
+        "character_length": "220-350 chars"
+      }
+    },
+    {
+      "question": "Write the third relevant FAQ question",
+      "answer": {
+        "description": "Write the detailed answer for the question",
+        "character_length": "220-350 chars"
+      }
     }
-  }
+  ]
 }`);
 
   const [selectedBannedKeywords, setSelectedBannedKeywords] = useState<string[]>([]);
@@ -328,8 +344,15 @@ ${targetSchema}`);
           setGenerationStatus(verRes.status || 'Verified');
           setVerifierModelId(verRes.verifier_model_id || 'openai/gpt-4o');
           setVerificationAttempt(verRes.verification_attempt || 1);
-        } catch (verErr) {
+        } catch (verErr: any) {
           console.error("Auto-verification error:", verErr);
+          setGenerationStatus('Verification Failed (Timeout/Error)');
+          setVerificationResults([{
+            parameter: "System Verification Call",
+            status: "FAIL",
+            reason: verErr.message || "The verification request timed out or failed on the server.",
+            affected_fields: []
+          }]);
         }
       }
     } catch (err: any) {
