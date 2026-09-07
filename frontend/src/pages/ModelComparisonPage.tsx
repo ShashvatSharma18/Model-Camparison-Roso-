@@ -1,11 +1,12 @@
 import { CustomDropdown } from "../components/CustomDropdown";
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { fetchHistory, fetchComparisonRuns } from '../services/api';
 import type { HistoryRun } from '../types';
 import { Check, Code, FileText, Eye, Layers, Clock, Cpu, DollarSign, Calendar } from 'lucide-react';
 import { RunDetailDrawer } from '../components/RunDetailDrawer';
 
 export const ModelComparisonPage: React.FC = () => {
+  const comparisonSectionRef = useRef<HTMLDivElement>(null);
   const [historyRuns, setHistoryRuns] = useState<HistoryRun[]>([]);
   const [selectedTestRunId, setSelectedTestRunId] = useState<string>('');
   const [allComparisonRuns, setAllComparisonRuns] = useState<any[]>([]);
@@ -78,6 +79,9 @@ export const ModelComparisonPage: React.FC = () => {
       return selectedGenIds.includes(g.id);
     });
     setComparedModels(selected);
+    setTimeout(() => {
+      comparisonSectionRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }, 100);
   };
 
   // Color tint schemes for headers matching reference screenshot
@@ -221,7 +225,7 @@ export const ModelComparisonPage: React.FC = () => {
 
       {/* 3. Side-by-Side Structured Output Display (Only shown when models are selected and compare clicked!) */}
       {comparedModels.length > 0 ? (
-        <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+        <div ref={comparisonSectionRef} style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '0 4px' }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
               <h3 style={{ fontSize: '18px', fontWeight: 800, color: '#0F172A', margin: 0 }}>Side-by-Side Comparison</h3>
