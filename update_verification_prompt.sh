@@ -1,0 +1,2 @@
+#!/bin/bash
+sed -i 's/Write and translate ALL text string values in the JSON output strictly into {language}./Write and translate ALL text string values in the JSON output strictly into {language}. IMPORTANT: Even if the input JSON, target schema keys, or descriptions are written in English, the final generated string values MUST be in {language}./g' /home/appinventiv/Desktop/Model\ Camparison\ Roso/backend/app/verification.py

@@ -347,7 +347,7 @@ def targeted_regeneration(model_id: str, current_json: Dict[str, Any], prompt_co
             fixes.append(f"- Strictly adjust lengths: {f.get('reason')}")
         elif p == "Banned Keywords":
             banned = prompt_config.get("banned_keywords", [])
-            fixes.append(f"- Strictly DO NOT use any of these banned words: {', '.join(banned)}.")
+            fixes.append(f"- Strictly DO NOT use any of these banned words: {', '.join(banned)}. CRITICAL: Do NOT use these exact words AND do NOT use their exact translations or equivalents in the target language.")
         elif p == "Tone":
             fixes.append(f"- Strictly adopt tone: {prompt_config.get('tone')}.")
         elif p == "Audience Variant":
@@ -371,7 +371,7 @@ GLOBAL CONSTRAINTS (You must STILL adhere to these for any text you rewrite):
 {prompt_config.get('target_schema', '{}')}
 2. Tone: {prompt_config.get('tone', 'Not specified')}
 3. Audience: {prompt_config.get('audience', 'Not specified')}
-4. Banned Keywords (DO NOT USE): {', '.join(prompt_config.get('banned_keywords', []))}
+4. Banned Keywords (DO NOT USE): {', '.join(prompt_config.get('banned_keywords', []))} (Nor their translations or equivalents)
 5. Style Guide: {prompt_config.get('style_guide', 'Not specified')}
 
 CRITICAL INSTRUCTIONS:
@@ -382,7 +382,7 @@ CRITICAL INSTRUCTIONS:
 
     system_prompt = f"""You are a professional travel content writer for RosoTravel.
 CRITICAL LANGUAGE MANDATE:
-Write and translate ALL text string values in the JSON output strictly into {language}.
+Write and translate ALL text string values in the JSON output strictly into {language}. IMPORTANT: Even if the input JSON, target schema keys, or descriptions are written in English, the final generated string values MUST be in {language}.
 
 OUTPUT REQUIREMENT:
 Return strictly valid JSON matching the exact structure of the provided JSON. Adhere strictly to any character length limits specified in the schema values:

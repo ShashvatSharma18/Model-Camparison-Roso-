@@ -105,47 +105,24 @@ export const SettingsPage: React.FC = () => {
             Verify Style Guide (LLM)
           </label>
 
-          <label style={{ display: 'flex', alignItems: 'center', gap: '10px', fontSize: '14px', cursor: 'pointer' }}>
-            <input
-              type="checkbox"
-              checked={settings.verify_additional_instructions}
-              onChange={(e) => setSettings({ ...settings, verify_additional_instructions: e.target.checked })}
-            />
-            Verify Additional Instructions (LLM)
-          </label>
         </div>
       </div>
 
       <div className="card">
         <div className="card-title">Verification & Regeneration Tuning</div>
 
-
         <div className="form-group">
-          <label className="form-label">Regeneration Strategy</label>
-          <CustomDropdown
-            options={[
-              { value: 'update_failed_sections', label: 'Update Only Failed Sections (Field-Grouped)' },
-              { value: 'full_rebuild', label: 'Full Content Rebuild' }
-            ]}
-            selectedValue={settings.regeneration_strategy}
-            setSelectedValue={(v) => setSettings({ ...settings, regeneration_strategy: v })}
-            placeholder="Select Strategy"
-          />
+          <label className="form-label">Regeneration Strategy (Currently Active)</label>
+          <div style={{ padding: '10px 14px', backgroundColor: '#F8FAFC', borderRadius: '8px', border: '1px solid #E2E8F0', color: '#475569', fontSize: '14px', fontWeight: 500 }}>
+            Update Only Failed Sections (Targeted Regeneration)
+          </div>
         </div>
 
         <div className="form-group">
-          <label className="form-label">Field Matching Strictness</label>
-          <CustomDropdown
-            options={[
-              { value: 'strict', label: 'Strict' },
-              { value: 'medium', label: 'Medium' },
-              { value: 'relaxed', label: 'Relaxed' }
-            ]}
-            selectedValue={settings.field_matching_strictness}
-            setSelectedValue={(v) => setSettings({ ...settings, field_matching_strictness: v })}
-            placeholder="Select Strictness"
-            direction="up"
-          />
+          <label className="form-label">Field Matching Strictness (Currently Active)</label>
+          <div style={{ padding: '10px 14px', backgroundColor: '#F8FAFC', borderRadius: '8px', border: '1px solid #E2E8F0', color: '#475569', fontSize: '14px', fontWeight: 500 }}>
+            Strict
+          </div>
         </div>
       </div>
 

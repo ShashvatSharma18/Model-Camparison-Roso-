@@ -5,8 +5,6 @@ import { VerificationLogsModal } from '../components/VerificationLogsModal';
 import { CustomDropdown } from '../components/CustomDropdown';
 import { Sparkles, Upload, Trash2, AlertTriangle, CheckCircle, FileText, RefreshCw, Clock, Cpu, DollarSign, Globe, Database, Sliders, Bot, FileCheck, ShieldCheck, FileX, Code2 } from 'lucide-react';
 
-
-
 const PREDEFINED_AUDIENCES = [
   'First-Time Visitor',
   'Family Traveler',
@@ -182,17 +180,17 @@ export const ContentGenerationPage: React.FC = () => {
     if (!autoBuild || !inputJson) return;
     const promptParts = [
       `You are a professional travel content writer for RosoTravel.`,
-      `Create content for ${city}, ${country} using the provided JSON data:`,
-      JSON.stringify(inputJson, null, 2)
+      `Create content for ${city}, ${country} using the provided data:`,
+      `{{INPUT_DATA}}`
     ];
 
     if (selectedLanguage) {
       if (selectedLanguage.toLowerCase() === 'english') {
         promptParts.push(`CRITICAL LANGUAGE MANDATE:\nYou MUST write ALL output text strictly in English.`);
       } else if (selectedLanguage.toLowerCase() === 'hindi') {
-        promptParts.push(`CRITICAL LANGUAGE MANDATE:\nYou MUST write and translate ALL output text strictly into Hindi using Devanagari script. Do NOT write in English.`);
+        promptParts.push(`CRITICAL LANGUAGE MANDATE:\nYou MUST write and translate ALL output text strictly into Hindi using Devanagari script. Do NOT write in English. IMPORTANT: Even if the target schema keys or descriptions are written in English, the final generated string values MUST be in Hindi.`);
       } else {
-        promptParts.push(`CRITICAL LANGUAGE MANDATE:\nYou MUST write and translate ALL output text strictly into ${selectedLanguage}. Do NOT write in English.`);
+        promptParts.push(`CRITICAL LANGUAGE MANDATE:\nYou MUST write and translate ALL output text strictly into ${selectedLanguage}. Do NOT write in English. IMPORTANT: Even if the target schema keys or descriptions are written in English, the final generated string values MUST be in ${selectedLanguage}.`);
       }
     }
 
@@ -200,7 +198,7 @@ export const ContentGenerationPage: React.FC = () => {
     if (selectedAudience) promptParts.push(`Audience Variant: ${selectedAudience}`);
 
     if (selectedBannedKeywords.length > 0) {
-      promptParts.push(`Banned Keywords / Phrases:\n${selectedBannedKeywords.map((kw) => '- ' + kw).join('\n')}`);
+      promptParts.push(`Banned Keywords / Phrases:\n${selectedBannedKeywords.map((kw) => '- ' + kw).join('\n')}\nCRITICAL: Do NOT use these exact words AND do NOT use their exact translations or equivalents in the target language.`);
     }
     if (styleGuide.trim()) {
       promptParts.push(`Style Guide:\n${styleGuide.trim()}`);
@@ -313,7 +311,7 @@ ${targetSchema}`);
         target_schema: targetSchema,
         banned_keywords: selectedBannedKeywords,
         style_guide: styleGuide,
-        final_prompt: livePrompt,
+        final_prompt: livePrompt.replace('{{INPUT_DATA}}', JSON.stringify(inputJson, null, 2)),
         model_id: selectedModel
       });
 

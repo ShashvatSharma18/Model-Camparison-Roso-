@@ -164,9 +164,9 @@ def generate_content_endpoint(payload: ContentGenerateRequest, token: str = Depe
     if target_lang.lower() == "english":
         lang_mandate = f"Write ALL text string values in the JSON output strictly in English."
     elif target_lang.lower() == "hindi":
-        lang_mandate = f"Write and translate ALL text string values in the JSON output strictly into Hindi using Devanagari script. Do NOT write in English."
+        lang_mandate = f"Write and translate ALL text string values in the JSON output strictly into Hindi using Devanagari script. Do NOT write in English. IMPORTANT: Even if the input JSON, target schema keys, or descriptions are written in English, the final generated string values MUST be in Hindi."
     else:
-        lang_mandate = f"Write and translate ALL text string values in the JSON output strictly into {target_lang}. Do NOT write in English."
+        lang_mandate = f"Write and translate ALL text string values in the JSON output strictly into {target_lang}. Do NOT write in English. IMPORTANT: Even if the input JSON, target schema keys, or descriptions are written in English, the final generated string values MUST be in {target_lang}."
 
     # Explicit Multilingual System Prompt Mandate
     system_prompt = f"""You are a professional travel content writer for RosoTravel.
