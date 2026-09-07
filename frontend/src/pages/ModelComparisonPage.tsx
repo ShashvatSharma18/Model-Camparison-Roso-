@@ -255,7 +255,6 @@ export const ModelComparisonPage: React.FC = () => {
           <div style={{ display: 'grid', gridTemplateColumns: `repeat(auto-fit, minmax(340px, 1fr))`, gap: '20px' }}>
             {comparedModels.map((item, idx) => {
             const gen = item.generation || item;
-            const cardId = gen.id || `gen-${idx}`;
             const tint = cardTints[idx % cardTints.length];
             const outJson = gen.output_json || {};
             const viewMode = globalViewMode;
