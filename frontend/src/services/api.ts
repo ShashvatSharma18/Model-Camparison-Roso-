@@ -43,6 +43,23 @@ export async function generateContent(payload: any) {
   return res.json();
 }
 
+export const generateTranslation = async (payload: {
+  target_language: string;
+  source_generation_id: string;
+  model_id: string;
+}): Promise<{success: boolean; generation_id?: string; test_run_id?: string; output_json?: any; metrics?: any}> => {
+  const res = await fetch(`${API_BASE_URL}/content/translate`, {
+    method: 'POST',
+    headers: getAuthHeader(),
+    body: JSON.stringify(payload)
+  });
+  if (!res.ok) {
+    const err = await res.json();
+    throw new Error(err.detail || 'Translation failed');
+  }
+  return res.json();
+}
+
 export async function verifyContent(generationId: string) {
   const res = await fetch(`${API_BASE_URL}/content/verify`, {
     method: 'POST',

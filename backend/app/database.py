@@ -36,7 +36,9 @@ def get_settings() -> Dict[str, Any]:
         "content_length_tolerance_pct": 50,
         "max_verification_retries": 3,
         "regeneration_strategy": "targeted",
-        "field_matching_strictness": "moderate"
+        "field_matching_strictness": "moderate",
+        "enabled_generation_models": [],
+        "enabled_translation_models": []
     }
 
     if supabase_client:
@@ -106,7 +108,7 @@ def find_matching_test_run(country: str, city: str, language: str, input_json: D
 
     return None
 
-def create_test_run(country: str, city: str, language: str, input_json: Dict[str, Any], prompt_config: Dict[str, Any]) -> str:
+def create_test_run(country: str, city: str, language: str, input_json: Dict[str, Any], prompt_config: Dict[str, Any], task_type: str = "Generation") -> str:
     test_run_id = str(uuid.uuid4())
     now = datetime.datetime.now(datetime.timezone.utc).isoformat()
 
@@ -118,6 +120,7 @@ def create_test_run(country: str, city: str, language: str, input_json: Dict[str
         "country": country,
         "city": city,
         "language": language,
+        "task_type": task_type,
         "input_json": input_json_copy,
         "created_at": now
     }
@@ -132,6 +135,7 @@ def create_test_run(country: str, city: str, language: str, input_json: Dict[str
         "banned_keywords": prompt_config.get("banned_keywords", []),
         "style_guide": prompt_config.get("style_guide", ""),
         "final_prompt": prompt_config.get("final_prompt", ""),
+        "source_generation_id": prompt_config.get("source_generation_id", None),
         "created_at": now
     }
     _in_memory_db["prompt_configs"].append(pc_record)
@@ -244,16 +248,25 @@ def get_history_runs() -> List[Dict[str, Any]]:
     # 1. Load from Supabase if configured
     if supabase_client:
         try:
-            res = supabase_client.table("generations").select("*, test_runs(*)").order("created_at", desc=True).execute()
+            res = supabase_client.table("generations").select("*, test_runs(*, prompt_configs(*))").order("created_at", desc=True).execute()
             if res.data and len(res.data) > 0:
                 for g in res.data:
                     tr = g.get("test_runs") or {}
+                    pc_list = tr.get("prompt_configs") or []
+                    pc = pc_list[0] if len(pc_list) > 0 else {}
+                    source_gen_id = pc.get("source_generation_id")
+                    
+                    lang = tr.get("language", "English")
+                    is_trans = source_gen_id is not None or lang != "English"
+                    actual_task_type = "Translation" if is_trans else tr.get("task_type", "Generation")
+
                     history_map[g["id"]] = {
                         "run_id": g["id"],
                         "test_run_id": g["test_run_id"],
                         "country": tr.get("country", "France"),
                         "city": tr.get("city", "Paris"),
                         "language": tr.get("language", "English"),
+                        "task_type": actual_task_type,
                         "model": g.get("model_name", g["model_id"]),
                         "model_id": g["model_id"],
                         "attempt_number": g.get("attempt_number", 1),
@@ -261,6 +274,7 @@ def get_history_runs() -> List[Dict[str, Any]]:
                         "latency_ms": g.get("latency_ms", 0),
                         "total_tokens": g.get("total_tokens", 0),
                         "cost": g.get("cost", 0.0),
+                        "source_generation_id": source_gen_id,
                         "created_at": g.get("created_at")
                     }
         except Exception as e:
@@ -270,12 +284,20 @@ def get_history_runs() -> List[Dict[str, Any]]:
     for g in reversed(_in_memory_db["generations"]):
         if g["id"] not in history_map:
             tr = next((t for t in _in_memory_db["test_runs"] if t["id"] == g["test_run_id"]), {})
+            pc = next((p for p in _in_memory_db["prompt_configs"] if p["test_run_id"] == g["test_run_id"]), {})
+            source_gen_id = pc.get("source_generation_id")
+            
+            lang = tr.get("language", "English")
+            is_trans = source_gen_id is not None or lang != "English"
+            actual_task_type = "Translation" if is_trans else tr.get("task_type", "Generation")
+            
             history_map[g["id"]] = {
                 "run_id": g["id"],
                 "test_run_id": g["test_run_id"],
                 "country": tr.get("country", "France"),
                 "city": tr.get("city", "Paris"),
                 "language": tr.get("language", "English"),
+                "task_type": actual_task_type,
                 "model": g.get("model_name", g["model_id"]),
                 "model_id": g["model_id"],
                 "attempt_number": g.get("attempt_number", 1),
@@ -283,10 +305,29 @@ def get_history_runs() -> List[Dict[str, Any]]:
                 "latency_ms": g.get("latency_ms", 0),
                 "total_tokens": g.get("total_tokens", 0),
                 "cost": g.get("cost", 0.0),
+                "source_generation_id": source_gen_id,
                 "created_at": g.get("created_at")
             }
 
-    return list(history_map.values())
+    history_list = list(history_map.values())
+    
+    # Retroactively infer source_generation_id for legacy translations
+    for item in history_list:
+        if item["task_type"] == "Translation" and not item.get("source_generation_id"):
+            # Find the most recent English Generation for the same city
+            source_candidates = [
+                h for h in history_list 
+                if h["task_type"] == "Generation" 
+                and h["language"] == "English" 
+                and h["city"] == item["city"]
+                and h["created_at"] < item["created_at"]
+            ]
+            if source_candidates:
+                # Sort by created_at descending and pick the first one
+                source_candidates.sort(key=lambda x: x["created_at"], reverse=True)
+                item["source_generation_id"] = source_candidates[0]["run_id"]
+
+    return history_list
 
 def get_used_models_for_test_run(test_run_id: str) -> List[str]:
     used = set()

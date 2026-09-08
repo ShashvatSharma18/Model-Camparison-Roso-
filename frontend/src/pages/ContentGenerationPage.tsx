@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { fetchModels, generateContent, verifyContent, regenerateContent, fetchTestRunUsedModels } from '../services/api';
+import { fetchModels, generateContent, verifyContent, regenerateContent, fetchTestRunUsedModels, fetchSettings } from '../services/api';
 import type { ModelInfo, VerificationResult } from '../types';
 import { VerificationLogsModal } from '../components/VerificationLogsModal';
 import { CustomDropdown } from '../components/CustomDropdown';
@@ -175,10 +175,13 @@ export const ContentGenerationPage: React.FC = () => {
         setJsonText(JSON.stringify(fallback, null, 2));
       });
 
-    fetchModels()
-      .then((data) => {
-        if (data && data.length > 0) {
-          setModels(data);
+    Promise.all([fetchModels(), fetchSettings()])
+      .then(([modelsData, settingsData]) => {
+        if (modelsData && modelsData.length > 0) {
+          const localGenStr = localStorage.getItem('roso_gen_models');
+          const enabledIds = localGenStr ? JSON.parse(localGenStr) : (settingsData?.enabled_generation_models || []);
+          const filteredModels = modelsData.filter(m => enabledIds.includes(m.id));
+          setModels(filteredModels);
         }
       })
       .catch((err) => console.error(err));

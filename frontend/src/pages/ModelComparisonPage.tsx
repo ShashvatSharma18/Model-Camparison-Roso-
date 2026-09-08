@@ -29,10 +29,11 @@ export const ModelComparisonPage: React.FC = () => {
   useEffect(() => {
     fetchHistory()
       .then((data) => {
-        setHistoryRuns(data);
-        if (data.length > 0) {
-          const firstLang = data[0].language || 'English';
-          const idsForLang = data.filter((r: any) => (r.language || 'English') === firstLang).map((r: any) => r.test_run_id);
+        const generationRuns = data.filter(h => (h.task_type || 'Generation') === 'Generation');
+        setHistoryRuns(generationRuns);
+        if (generationRuns.length > 0) {
+          const firstLang = generationRuns[0].language || 'English';
+          const idsForLang = generationRuns.filter((r: any) => (r.language || 'English') === firstLang).map((r: any) => r.test_run_id);
           const uniqueIds = Array.from(new Set(idsForLang));
           setSelectedTestRunId(uniqueIds.join(','));
         }
@@ -98,7 +99,7 @@ export const ModelComparisonPage: React.FC = () => {
         <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', marginBottom: '20px' }}>
           <div>
             <h2 style={{ fontSize: '20px', fontWeight: 800, color: '#0F172A', letterSpacing: '-0.3px', marginBottom: '4px' }}>
-              Model Comparison
+              Generation Comparison
             </h2>
             <p style={{ fontSize: '13px', color: '#64748B' }}>
               Select generated models from the boxes below and click "Compare Selected Models" to view side-by-side structured outputs

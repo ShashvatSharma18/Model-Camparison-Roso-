@@ -3,10 +3,12 @@ import { Sidebar } from './components/Sidebar';
 import { Header } from './components/Header';
 import { DashboardPage } from './pages/DashboardPage';
 import { ContentGenerationPage } from './pages/ContentGenerationPage';
+import { TranslationPage } from './pages/TranslationPage';
 import { HistoryPage } from './pages/HistoryPage';
 import { ModelComparisonPage } from './pages/ModelComparisonPage';
 import { SettingsPage } from './pages/SettingsPage';
 import { OpenRouterKeyPage } from './pages/OpenRouterKeyPage';
+import { TranslationComparisonPage } from './pages/TranslationComparisonPage';
 import { RunDetailDrawer } from './components/RunDetailDrawer';
 
 export function App() {
@@ -24,7 +26,9 @@ export function App() {
     dashboard: 'Dashboard Overview',
     generate: 'Content Generation Interface',
     history: 'History Runs & Audit Trail',
-    comparison: 'Side-by-Side Model Comparison',
+    translation: 'Strict Content Translation',
+    comparison: 'Side-by-Side Generation Comparison',
+    'translation-comparison': 'Translation Comparison',
     settings: 'AI / Prompt Settings Configuration'
   };
 
@@ -45,9 +49,13 @@ export function App() {
 
           {activeTab === 'generate' && <ContentGenerationPage />}
 
+          {activeTab === 'translation' && <TranslationPage />}
+
           {activeTab === 'history' && <HistoryPage />}
 
           {activeTab === 'comparison' && <ModelComparisonPage />}
+          
+          {activeTab === 'translation-comparison' && <TranslationComparisonPage />}
 
           {activeTab === 'settings' && <SettingsPage />}
         </main>

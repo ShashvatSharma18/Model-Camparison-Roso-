@@ -42,7 +42,9 @@ export interface HistoryRun {
   test_run_id: string;
   country: string;
   city: string;
+  task_type?: 'Generation' | 'Translation';
   language: string;
+  source_generation_id?: string;
   model: string;
   model_id: string;
   status: string;
@@ -75,4 +77,6 @@ export interface AppSettings {
   max_verification_retries: number;
   regeneration_strategy: string;
   field_matching_strictness: string;
+  enabled_generation_models?: string[];
+  enabled_translation_models?: string[];
 }

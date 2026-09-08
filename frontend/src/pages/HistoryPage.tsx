@@ -10,6 +10,7 @@ export const HistoryPage: React.FC = () => {
   const [searchTerm, setSearchTerm] = useState('');
   const [modelFilter, setModelFilter] = useState('All Models');
   const [statusFilter, setStatusFilter] = useState('All Status');
+  const [taskTypeFilter, setTaskTypeFilter] = useState('All Tasks');
   const [selectedRunId, setSelectedRunId] = useState<string | null>(null);
 
   useEffect(() => {
@@ -29,7 +30,9 @@ export const HistoryPage: React.FC = () => {
 
     const matchesModel = modelFilter === 'All Models' || run.model === modelFilter || run.model_id === modelFilter;
     const matchesStatus = statusFilter === 'All Status' || (run.status || '').toLowerCase() === statusFilter.toLowerCase();
-    return matchesSearch && matchesModel && matchesStatus;
+    const matchesTaskType = taskTypeFilter === 'All Tasks' || (run.task_type || 'Generation') === taskTypeFilter;
+    
+    return matchesSearch && matchesModel && matchesStatus && matchesTaskType;
   });
 
   return (
@@ -47,6 +50,20 @@ export const HistoryPage: React.FC = () => {
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
               style={{ paddingLeft: '36px' }}
+            />
+          </div>
+
+          {/* Task Type Filter */}
+          <div style={{ width: '160px' }}>
+            <CustomDropdown
+              options={[
+                { value: 'All Tasks', label: 'All Tasks' },
+                { value: 'Generation', label: 'Generation' },
+                { value: 'Translation', label: 'Translation' },
+              ]}
+              selectedValue={taskTypeFilter}
+              setSelectedValue={setTaskTypeFilter}
+              placeholder="Task Type"
             />
           </div>
 

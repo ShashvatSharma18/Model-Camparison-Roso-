@@ -47,6 +47,11 @@ class ContentVerifyRequest(BaseModel):
 class ContentRegenerateRequest(BaseModel):
     generation_id: str
 
+class ContentTranslationRequest(BaseModel):
+    source_generation_id: str
+    target_language: str
+    model_id: str
+
 class SettingsUpdateRequest(BaseModel):
     verifier_model_id: Optional[str] = None
     verify_tone: Optional[bool] = None
@@ -58,6 +63,8 @@ class SettingsUpdateRequest(BaseModel):
     max_verification_retries: Optional[int] = None
     regeneration_strategy: Optional[str] = None
     field_matching_strictness: Optional[str] = None
+    enabled_generation_models: Optional[list[str]] = None
+    enabled_translation_models: Optional[list[str]] = None
 
 def verify_session_token(authorization: Optional[str] = Header(None)):
     if not authorization or not authorization.startswith("Bearer "):
@@ -253,6 +260,124 @@ Return strictly valid JSON matching this structure and constraints exactly:
         "metrics": {
             "input_tokens": in_t,
             "output_tokens": out_t,
+            "total_tokens": tot_t,
+            "latency_ms": lat_ms,
+            "cost": cost
+        }
+    }
+
+@app.post("/api/content/translate")
+def translate_content_endpoint(payload: ContentTranslationRequest, token: str = Depends(verify_session_token)):
+    if not payload.model_id:
+        raise HTTPException(status_code=400, detail="Please select an OpenRouter model before generating translation.")
+    if payload.target_language not in ["German", "Spanish", "Polish", "Italian", "French"]:
+        raise HTTPException(status_code=400, detail="Invalid target language. Must be one of: German, Spanish, Polish, Italian, French.")
+        
+    history = get_history_runs()
+    source_gen = next((g for g in history if g.get("run_id") == payload.source_generation_id or g.get("id") == payload.source_generation_id), None)
+    if not source_gen:
+        raise HTTPException(status_code=404, detail="Source generation not found.")
+        
+    details = get_run_details(payload.source_generation_id)
+    if not details or "generation" not in details:
+        raise HTTPException(status_code=404, detail="Source generation details not found.")
+        
+    source_json = details["generation"].get("output_json", {})
+    if not source_json:
+        raise HTTPException(status_code=400, detail="Source generation is empty.")
+    
+    source_test_run = details.get("test_run", {})
+    source_prompt_config = details.get("prompt_config", {})
+    
+    new_prompt_config = dict(source_prompt_config)
+    new_prompt_config["language"] = payload.target_language
+    new_prompt_config["is_translation"] = True
+    new_prompt_config["source_generation_id"] = payload.source_generation_id
+    
+    test_run_id = create_test_run(
+        country=source_test_run.get("country", "Unknown"),
+        city=source_test_run.get("city", "Unknown"),
+        language=payload.target_language,
+        input_json=source_test_run.get("input_json", {}),
+        prompt_config=new_prompt_config,
+        task_type="Translation"
+    )
+    
+    system_prompt = f"""You are an expert localization engine. Translate the provided JSON into {payload.target_language}, adhering STRICTLY to the following rules:
+
+1. Translation rules (mandatory): Never translate:
+   - factual fields — exact wording
+   - ecommerce properties (price, currency, meeting point) — exact wording
+   - place names (detected via Named-Entity Recognition) — exact wording
+   - keywords marked as "locked" — exact wording
+
+2. Token preservation:
+   - {{{{City_Name}}}}, {{{{Attraction_Name}}}} tokens stay exactly as tokens — explicitly stated
+   - Translate but keep {{{{City_Name}}}} unchanged.
+
+3. Fields NEVER translated (schema):
+   - geo, address, openingHoursSpecification — listed explicitly
+
+4. CMS static pages:
+   - Never overwrite LOCKED blocks (hard)
+   - Block state machine (AUTO / EDITED / LOCKED / OUTDATED) — all explicitly defined
+
+5. URLs and Linking:
+   - Header links never change by language; only the labels are translated. URLs remain the same structure with language prefix.
+
+OUTPUT REQUIREMENT:
+Return strictly valid JSON matching the exact structure of the provided input JSON.
+"""
+
+    prompt = f"Translate the following JSON content into {payload.target_language} adhering strictly to the system rules:\n\n{json.dumps(source_json, indent=2)}"
+    
+    models = fetch_openrouter_models(api_key=token)
+    selected_model_name = next((m["name"] for m in models if m["id"] == payload.model_id), payload.model_id)
+
+    gen_success, output_json, in_t, out_t, tot_t, lat_ms, cost = generate_completion(
+        model_id=payload.model_id,
+        prompt=prompt,
+        api_key=token,
+        system_prompt=system_prompt
+    )
+    
+    if not gen_success or not output_json:
+        error_msg = output_json.get("error", "Failed to generate translation JSON.") if isinstance(output_json, dict) else "Translation generation failed."
+        save_generation(
+            test_run_id=test_run_id,
+            model_id=payload.model_id,
+            model_name=selected_model_name,
+            attempt_number=1,
+            output_json={"error": error_msg},
+            status="Failed",
+            input_tokens=in_t,
+            output_tokens=out_t,
+            total_tokens=tot_t,
+            latency_ms=lat_ms,
+            cost=cost
+        )
+        raise HTTPException(status_code=500, detail=error_msg)
+
+    gen_id = save_generation(
+        test_run_id=test_run_id,
+        model_id=payload.model_id,
+        model_name=selected_model_name,
+        attempt_number=1,
+        output_json=output_json,
+        status="Verified",
+        input_tokens=in_t,
+        output_tokens=out_t,
+        total_tokens=tot_t,
+        latency_ms=lat_ms,
+        cost=cost
+    )
+
+    return {
+        "success": True,
+        "generation_id": gen_id,
+        "test_run_id": test_run_id,
+        "output_json": output_json,
+        "metrics": {
             "total_tokens": tot_t,
             "latency_ms": lat_ms,
             "cost": cost
