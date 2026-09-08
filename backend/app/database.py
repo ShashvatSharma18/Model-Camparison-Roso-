@@ -341,8 +341,7 @@ def get_history_runs() -> List[Dict[str, Any]]:
     # Sort history_list by created_at descending (latest first)
     history_list.sort(key=lambda x: x.get("created_at", ""), reverse=True)
     
-    # Limit to latest 15
-    return history_list[:15]
+    return history_list
 
 def get_used_models_for_test_run(test_run_id: str) -> List[str]:
     used = set()

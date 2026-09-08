@@ -97,6 +97,7 @@ export const TranslationComparisonPage: React.FC = () => {
   
   const sourceOptions = generationRuns
     .filter(g => translatedSourceIds.includes(g.run_id))
+    .slice(0, 15)
     .map(g => ({
       value: g.run_id,
       label: `${g.city || 'Unknown'} - ${g.model} | ${new Date(g.created_at || '').toLocaleString('en-US', { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit', hour12: true })}`
@@ -322,8 +323,9 @@ export const TranslationComparisonPage: React.FC = () => {
                   {Object.keys(sourceRunData.generation.output_json)
                     .filter(k => k !== 'error')
                     .sort((a, b) => {
-                      const idxA = desiredOrder.indexOf(a);
-                      const idxB = desiredOrder.indexOf(b);
+                      const dynamicOrder = sourceRunData && sourceRunData.generation?.output_json ? Object.keys(sourceRunData.generation.output_json) : desiredOrder;
+                      const idxA = dynamicOrder.indexOf(a);
+                      const idxB = dynamicOrder.indexOf(b);
                       if (idxA !== -1 && idxB !== -1) return idxA - idxB;
                       if (idxA !== -1) return -1;
                       if (idxB !== -1) return 1;
@@ -404,8 +406,9 @@ export const TranslationComparisonPage: React.FC = () => {
                       {Object.keys(outJson)
                         .filter(k => k !== 'error')
                         .sort((a, b) => {
-                          const idxA = desiredOrder.indexOf(a);
-                          const idxB = desiredOrder.indexOf(b);
+                          const dynamicOrder = sourceRunData && sourceRunData.generation?.output_json ? Object.keys(sourceRunData.generation.output_json) : desiredOrder;
+                          const idxA = dynamicOrder.indexOf(a);
+                          const idxB = dynamicOrder.indexOf(b);
                           if (idxA !== -1 && idxB !== -1) return idxA - idxB;
                           if (idxA !== -1) return -1;
                           if (idxB !== -1) return 1;

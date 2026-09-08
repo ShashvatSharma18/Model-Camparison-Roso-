@@ -58,7 +58,7 @@ export const ModelComparisonPage: React.FC = () => {
             const dateB = new Date((b.generation || b).created_at || 0).getTime();
             return dateB - dateA;
           });
-          setAllComparisonRuns(validRuns);
+          setAllComparisonRuns(validRuns.slice(0, 15));
           setSelectedGenIds([]);
           setComparedModels([]);
         })

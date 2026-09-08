@@ -116,7 +116,7 @@ export const HistoryPage: React.FC = () => {
             </thead>
             <tbody>
               {filteredHistory.length > 0 ? (
-                filteredHistory.map((run, idx) => {
+                filteredHistory.slice(0, 15).map((run, idx) => {
                   const dateStr = run.created_at || run.date;
                   return (
                     <tr key={idx}>

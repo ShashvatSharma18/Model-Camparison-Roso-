@@ -117,7 +117,7 @@ def update_app_settings_route(payload: SettingsUpdateRequest):
 
 @app.get("/api/dashboard/stats")
 def get_dashboard_stats():
-    history = get_history_runs()
+    history = get_history_runs()[:15]
     total_runs = len(history)
     successful_runs = sum(1 for h in history if (h.get("status") or "").lower() in ["verified", "regenerated", "pass"])
     regenerated_runs = sum(1 for h in history if (h.get("status") or "").lower() == "regenerated")
@@ -132,7 +132,7 @@ def get_dashboard_stats():
         "avg_latency_sec": round(avg_latency_ms / 1000.0, 2),
         "total_tokens": total_tokens,
         "total_cost": total_cost,
-        "recent_runs": history[:10]
+        "recent_runs": history
     }
 
 @app.get("/api/test-runs/{test_run_id}/models")

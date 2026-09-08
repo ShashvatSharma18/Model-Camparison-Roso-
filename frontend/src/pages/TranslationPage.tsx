@@ -51,7 +51,7 @@ export const TranslationPage: React.FC = () => {
         (h.language || 'English').toLowerCase() === 'english' && 
         ((h.status || '').toLowerCase() === 'verified' || (h.status || '').toLowerCase() === 'regenerated')
       );
-      setEnglishRuns(validEnglish);
+      setEnglishRuns(validEnglish.slice(0, 15));
       // We no longer auto-select the first valid english run. User must click.
     }).catch(console.error);
   }, []);
