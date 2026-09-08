@@ -29,8 +29,18 @@ export const TranslationPage: React.FC = () => {
     Promise.all([fetchModels(), fetchSettings()])
       .then(([modelsData, settingsData]) => {
         if (modelsData && modelsData.length > 0) {
-          const localTransStr = localStorage.getItem('roso_trans_models');
-          const enabledIds = localTransStr ? JSON.parse(localTransStr) : (settingsData?.enabled_translation_models || []);
+          const localTransStr = localStorage.getItem('roso_trans_models_v2');
+          const DEFAULT_MODELS = [
+            "openai/gpt-5.6-sol", "openai/gpt-5.6-terra", "openai/gpt-5.6-luna",
+            "anthropic/claude-sonnet-5", "anthropic/claude-sonnet-4.5", "anthropic/claude-haiku-4.5",
+            "anthropic/claude-3-haiku", "mistralai/mistral-large", "qwen/qwen3-235b-a22b-2507", "moonshotai/kimi-k2.5"
+          ];
+          
+          let enabledIds = localTransStr ? JSON.parse(localTransStr) : (settingsData?.enabled_translation_models || []);
+          if (!enabledIds || enabledIds.length === 0) {
+            enabledIds = DEFAULT_MODELS;
+          }
+          
           const filteredModels = modelsData.filter(m => enabledIds.includes(m.id));
           setModels(filteredModels);
         }

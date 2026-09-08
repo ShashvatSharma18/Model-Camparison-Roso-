@@ -21,7 +21,17 @@ FALLBACK_MODELS = [
     { "id": "mistralai/mistral-large-2411", "name": "Mistral Large 2 (Mistral AI)", "context_length": 128000, "pricing": { "prompt": "0.000002", "completion": "0.000006" } },
     { "id": "mistralai/mistral-small-24b-instruct-2501", "name": "Mistral Small 24B (Mistral AI)", "context_length": 32768, "pricing": { "prompt": "0.0000001", "completion": "0.0000003" } },
     { "id": "cohere/command-r-plus", "name": "Command R+ (Cohere)", "context_length": 128000, "pricing": { "prompt": "0.0000025", "completion": "0.00001" } },
-    { "id": "perplexity/sonar-reasoning", "name": "Sonar Reasoning (Perplexity)", "context_length": 127000, "pricing": { "prompt": "0.000001", "completion": "0.000005" } }
+    { "id": "perplexity/sonar-reasoning", "name": "Sonar Reasoning (Perplexity)", "context_length": 127000, "pricing": { "prompt": "0.000001", "completion": "0.000005" } },
+    { "id": "openai/gpt-5.6-sol", "name": "GPT-5.6 Sol", "context_length": 128000, "pricing": { "prompt": "0.0000025", "completion": "0.00001" } },
+    { "id": "openai/gpt-5.6-terra", "name": "GPT-5.6 Terra", "context_length": 128000, "pricing": { "prompt": "0.0000025", "completion": "0.00001" } },
+    { "id": "openai/gpt-5.6-luna", "name": "GPT-5.6 Luna", "context_length": 128000, "pricing": { "prompt": "0.0000025", "completion": "0.00001" } },
+    { "id": "anthropic/claude-sonnet-5", "name": "Claude Sonnet 5", "context_length": 200000, "pricing": { "prompt": "0.000003", "completion": "0.000015" } },
+    { "id": "anthropic/claude-sonnet-4.5", "name": "Claude Sonnet 4.5", "context_length": 200000, "pricing": { "prompt": "0.000003", "completion": "0.000015" } },
+    { "id": "anthropic/claude-haiku-4.5", "name": "Claude Haiku 4.5", "context_length": 200000, "pricing": { "prompt": "0.000001", "completion": "0.000005" } },
+    { "id": "anthropic/claude-3-haiku", "name": "Claude 3 Haiku", "context_length": 200000, "pricing": { "prompt": "0.000001", "completion": "0.000005" } },
+    { "id": "mistralai/mistral-large", "name": "Mistral Large 3", "context_length": 128000, "pricing": { "prompt": "0.000002", "completion": "0.000006" } },
+    { "id": "qwen/qwen3-235b-a22b-2507", "name": "Qwen3 235B A22B", "context_length": 131072, "pricing": { "prompt": "0.00000035", "completion": "0.0000004" } },
+    { "id": "moonshotai/kimi-k2.5", "name": "Kimi K2.5", "context_length": 128000, "pricing": { "prompt": "0.0000001", "completion": "0.0000001" } }
 ]
 
 def fetch_openrouter_models(api_key: str) -> List[Dict[str, Any]]:

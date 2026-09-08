@@ -10,10 +10,10 @@ export const Sidebar: React.FC<SidebarProps> = ({ activeTab, setActiveTab }) => 
   const navItems = [
     { id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard },
     { id: 'generate', label: 'Content Generation', icon: Sparkles },
-    { id: 'history', label: 'History', icon: History },
     { id: 'translation', label: 'Translation', icon: Globe },
     { id: 'comparison', label: 'Generation Comparison', icon: GitCompare },
     { id: 'translation-comparison', label: 'Translation Comparison', icon: Globe },
+    { id: 'history', label: 'History', icon: History },
     { id: 'settings', label: 'AI / Prompt Settings', icon: Settings },
   ];
 

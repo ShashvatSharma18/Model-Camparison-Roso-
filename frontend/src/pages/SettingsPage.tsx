@@ -18,11 +18,23 @@ export const SettingsPage: React.FC = () => {
   useEffect(() => {
     Promise.all([fetchSettings(), fetchModels()])
       .then(([sData, mData]) => {
-        const localGenStr = localStorage.getItem('roso_gen_models');
-        const localTransStr = localStorage.getItem('roso_trans_models');
+        const localGenStr = localStorage.getItem('roso_gen_models_v2');
+        const localTransStr = localStorage.getItem('roso_trans_models_v2');
+        const DEFAULT_MODELS = [
+          "openai/gpt-5.6-sol", "openai/gpt-5.6-terra", "openai/gpt-5.6-luna",
+          "anthropic/claude-sonnet-5", "anthropic/claude-sonnet-4.5", "anthropic/claude-haiku-4.5",
+          "anthropic/claude-3-haiku", "mistralai/mistral-large", "qwen/qwen3-235b-a22b-2507", "moonshotai/kimi-k2.5"
+        ];
+        
         if (sData) {
-          sData.enabled_generation_models = localGenStr ? JSON.parse(localGenStr) : [];
-          sData.enabled_translation_models = localTransStr ? JSON.parse(localTransStr) : [];
+          let genIds = localGenStr ? JSON.parse(localGenStr) : [];
+          if (!genIds || genIds.length === 0) genIds = DEFAULT_MODELS;
+          
+          let transIds = localTransStr ? JSON.parse(localTransStr) : [];
+          if (!transIds || transIds.length === 0) transIds = DEFAULT_MODELS;
+
+          sData.enabled_generation_models = genIds;
+          sData.enabled_translation_models = transIds;
         }
         setSettings(sData);
         setModels(mData);
@@ -260,8 +272,8 @@ export const SettingsPage: React.FC = () => {
               </button>
               <button 
                 onClick={() => {
-                  localStorage.setItem('roso_gen_models', JSON.stringify(tempGenModels));
-                  localStorage.setItem('roso_trans_models', JSON.stringify(tempTransModels));
+                  localStorage.setItem('roso_gen_models_v2', JSON.stringify(tempGenModels));
+                  localStorage.setItem('roso_trans_models_v2', JSON.stringify(tempTransModels));
                   setSettings({ ...settings, enabled_generation_models: tempGenModels, enabled_translation_models: tempTransModels });
                   setShowModelChooser(false);
                 }}

@@ -78,6 +78,9 @@ export const DashboardPage: React.FC<{ onNavigateToHistory?: () => void }> = ({ 
           </div>
           <div style={{ fontSize: '24px', fontWeight: 800, color: '#0F172A', marginBottom: '4px' }}>{stats?.avg_latency_sec ?? '0.00'}s</div>
           <div style={{ fontSize: '11px', fontWeight: 700, color: '#8B5CF6' }}>Avg Model Speed</div>
+          <div style={{ fontSize: '10px', color: '#94A3B8', marginTop: '6px', fontStyle: 'italic', lineHeight: '1.2' }}>
+            * This is the average latency of all the traces that is shown in the history.
+          </div>
         </div>
 
         <div style={{ backgroundColor: '#FFFFFF', border: '1px solid #E2E8F0', borderRadius: '12px', padding: '18px', boxShadow: 'var(--shadow-sm)' }}>

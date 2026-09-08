@@ -74,6 +74,14 @@ def verify_session_token(authorization: Optional[str] = Header(None)):
         raise HTTPException(status_code=401, detail="Invalid OpenRouter API Key in session.")
     return token
 
+def optional_session_token(authorization: Optional[str] = Header(None)):
+    if not authorization or not authorization.startswith("Bearer "):
+        return ""
+    token = authorization.split(" ")[1]
+    if not token.startswith("sk-or-v1-"):
+        return ""
+    return token
+
 @app.post("/api/auth/verify")
 def auth_verify(payload: AuthVerifyRequest):
     key = payload.api_key.strip() if payload.api_key else ""
@@ -95,7 +103,7 @@ def auth_verify(payload: AuthVerifyRequest):
     raise HTTPException(status_code=401, detail="Invalid OpenRouter API key. Please check your key and try again.")
 
 @app.get("/api/models")
-def get_models(token: str = Depends(verify_session_token)):
+def get_models(token: str = Depends(optional_session_token)):
     return fetch_openrouter_models(api_key=token)
 
 @app.get("/api/settings")
