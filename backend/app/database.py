@@ -257,8 +257,14 @@ def get_history_runs() -> List[Dict[str, Any]]:
                     source_gen_id = pc.get("source_generation_id")
                     
                     lang = tr.get("language", "English")
-                    is_trans = source_gen_id is not None or lang != "English"
-                    actual_task_type = "Translation" if is_trans else tr.get("task_type", "Generation")
+                    
+                    # A test run is a Translation if it explicitly has task_type="Translation" or if it has a source_generation_id
+                    stored_task_type = tr.get("task_type")
+                    if stored_task_type:
+                        actual_task_type = stored_task_type
+                    else:
+                        is_trans = source_gen_id is not None
+                        actual_task_type = "Translation" if is_trans else "Generation"
 
                     history_map[g["id"]] = {
                         "run_id": g["id"],
@@ -288,8 +294,13 @@ def get_history_runs() -> List[Dict[str, Any]]:
             source_gen_id = pc.get("source_generation_id")
             
             lang = tr.get("language", "English")
-            is_trans = source_gen_id is not None or lang != "English"
-            actual_task_type = "Translation" if is_trans else tr.get("task_type", "Generation")
+            
+            stored_task_type = tr.get("task_type")
+            if stored_task_type:
+                actual_task_type = stored_task_type
+            else:
+                is_trans = source_gen_id is not None
+                actual_task_type = "Translation" if is_trans else "Generation"
             
             history_map[g["id"]] = {
                 "run_id": g["id"],
