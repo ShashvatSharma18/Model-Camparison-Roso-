@@ -1,12 +1,13 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { fetchModels, fetchHistory, fetchRunDetails, generateTranslation, fetchSettings } from '../services/api';
-import type { ModelInfo, HistoryRun } from '../types';
+import type { ModelInfo } from '../types';
 import { CustomDropdown } from '../components/CustomDropdown';
 import { Globe, RefreshCw, AlertTriangle, FileText, Code, Cpu, Clock, Calendar, DollarSign } from 'lucide-react';
 
 export const TranslationPage: React.FC = () => {
   const [models, setModels] = useState<ModelInfo[]>([]);
-  const [englishRuns, setEnglishRuns] = useState<HistoryRun[]>([]);
+  const [englishRuns, setEnglishRuns] = useState<any[]>([]);
+  const [sourceRunData, setSourceRunData] = useState<any>(null);
   
   const [selectedSourceGenId, setSelectedSourceGenId] = useState<string>('');
   const [selectedTargetLang, setSelectedTargetLang] = useState<string>('German');
@@ -58,19 +59,22 @@ export const TranslationPage: React.FC = () => {
 
   useEffect(() => {
     if (selectedSourceGenId) {
-      fetchRunDetails(selectedSourceGenId).then(details => {
-        if (details && details.generation && details.generation.output_json) {
-          setSourceJson(details.generation.output_json);
+      // Fetch source run data to get the target schema
+      fetchRunDetails(selectedSourceGenId).then(data => {
+        setSourceRunData(data);
+        if (data && data.generation && data.generation.output_json) {
+          setSourceJson(data.generation.output_json);
           setTranslatedJson(null);
           setTranslationMetrics(null);
         }
       }).catch(console.error);
     } else {
+      setSourceRunData(null);
       setSourceJson(null);
       setTranslatedJson(null);
       setTranslationMetrics(null);
     }
-  }, [selectedSourceGenId]);
+  }, [selectedSourceGenId, englishRuns]);
 
   const handleTranslate = async () => {
     if (!selectedSourceGenId || !selectedTargetLang || !selectedModelId) {
@@ -131,6 +135,15 @@ export const TranslationPage: React.FC = () => {
                 ];
                 
                 const sortedKeys = Object.keys(outJson).sort((a, b) => {
+                  const targetSchema = sourceRunData?.test_run?.input_json?.__target_schema__;
+                  if (targetSchema && typeof targetSchema === 'string') {
+                    const lowerSchema = targetSchema.toLowerCase();
+                    const idxA = lowerSchema.indexOf(a.toLowerCase());
+                    const idxB = lowerSchema.indexOf(b.toLowerCase());
+                    if (idxA !== -1 && idxB !== -1) return idxA - idxB;
+                    if (idxA !== -1) return -1;
+                    if (idxB !== -1) return 1;
+                  }
                   const idxA = desiredOrder.indexOf(a);
                   const idxB = desiredOrder.indexOf(b);
                   if (idxA !== -1 && idxB !== -1) return idxA - idxB;

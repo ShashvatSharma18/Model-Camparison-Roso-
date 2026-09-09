@@ -114,13 +114,14 @@ def create_test_run(country: str, city: str, language: str, input_json: Dict[str
 
     input_json_copy = dict(input_json)
     input_json_copy["__target_schema__"] = prompt_config.get("target_schema", "")
+    input_json_copy["__task_type__"] = task_type
+    input_json_copy["__source_generation_id__"] = prompt_config.get("source_generation_id", None)
 
     tr_record = {
         "id": test_run_id,
         "country": country,
         "city": city,
         "language": language,
-        "task_type": task_type,
         "input_json": input_json_copy,
         "created_at": now
     }
@@ -135,7 +136,6 @@ def create_test_run(country: str, city: str, language: str, input_json: Dict[str
         "banned_keywords": prompt_config.get("banned_keywords", []),
         "style_guide": prompt_config.get("style_guide", ""),
         "final_prompt": prompt_config.get("final_prompt", ""),
-        "source_generation_id": prompt_config.get("source_generation_id", None),
         "created_at": now
     }
     _in_memory_db["prompt_configs"].append(pc_record)
@@ -254,12 +254,13 @@ def get_history_runs() -> List[Dict[str, Any]]:
                     tr = g.get("test_runs") or {}
                     pc_list = tr.get("prompt_configs") or []
                     pc = pc_list[0] if len(pc_list) > 0 else {}
-                    source_gen_id = pc.get("source_generation_id")
+                    input_json = tr.get("input_json") or {}
+                    source_gen_id = pc.get("source_generation_id") or input_json.get("__source_generation_id__")
                     
                     lang = tr.get("language", "English")
                     
                     # A test run is a Translation if it explicitly has task_type="Translation" or if it has a source_generation_id
-                    stored_task_type = tr.get("task_type")
+                    stored_task_type = tr.get("task_type") or input_json.get("__task_type__")
                     if stored_task_type:
                         actual_task_type = stored_task_type
                     else:
@@ -291,11 +292,12 @@ def get_history_runs() -> List[Dict[str, Any]]:
         if g["id"] not in history_map:
             tr = next((t for t in _in_memory_db["test_runs"] if t["id"] == g["test_run_id"]), {})
             pc = next((p for p in _in_memory_db["prompt_configs"] if p["test_run_id"] == g["test_run_id"]), {})
-            source_gen_id = pc.get("source_generation_id")
+            input_json = tr.get("input_json") or {}
+            source_gen_id = pc.get("source_generation_id") or input_json.get("__source_generation_id__")
             
             lang = tr.get("language", "English")
             
-            stored_task_type = tr.get("task_type")
+            stored_task_type = tr.get("task_type") or input_json.get("__task_type__")
             if stored_task_type:
                 actual_task_type = stored_task_type
             else:

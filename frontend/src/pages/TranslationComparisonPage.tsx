@@ -323,9 +323,17 @@ export const TranslationComparisonPage: React.FC = () => {
                   {Object.keys(sourceRunData.generation.output_json)
                     .filter(k => k !== 'error')
                     .sort((a, b) => {
-                      const dynamicOrder = sourceRunData && sourceRunData.generation?.output_json ? Object.keys(sourceRunData.generation.output_json) : desiredOrder;
-                      const idxA = dynamicOrder.indexOf(a);
-                      const idxB = dynamicOrder.indexOf(b);
+                      const targetSchema = sourceRunData?.test_run?.input_json?.__target_schema__;
+                      if (targetSchema && typeof targetSchema === 'string') {
+                        const lowerSchema = targetSchema.toLowerCase();
+                        const idxA = lowerSchema.indexOf(a.toLowerCase());
+                        const idxB = lowerSchema.indexOf(b.toLowerCase());
+                        if (idxA !== -1 && idxB !== -1) return idxA - idxB;
+                        if (idxA !== -1) return -1;
+                        if (idxB !== -1) return 1;
+                      }
+                      const idxA = desiredOrder.indexOf(a);
+                      const idxB = desiredOrder.indexOf(b);
                       if (idxA !== -1 && idxB !== -1) return idxA - idxB;
                       if (idxA !== -1) return -1;
                       if (idxB !== -1) return 1;
@@ -406,9 +414,17 @@ export const TranslationComparisonPage: React.FC = () => {
                       {Object.keys(outJson)
                         .filter(k => k !== 'error')
                         .sort((a, b) => {
-                          const dynamicOrder = sourceRunData && sourceRunData.generation?.output_json ? Object.keys(sourceRunData.generation.output_json) : desiredOrder;
-                          const idxA = dynamicOrder.indexOf(a);
-                          const idxB = dynamicOrder.indexOf(b);
+                          const targetSchema = sourceRunData?.test_run?.input_json?.__target_schema__;
+                          if (targetSchema && typeof targetSchema === 'string') {
+                            const lowerSchema = targetSchema.toLowerCase();
+                            const idxA = lowerSchema.indexOf(a.toLowerCase());
+                            const idxB = lowerSchema.indexOf(b.toLowerCase());
+                            if (idxA !== -1 && idxB !== -1) return idxA - idxB;
+                            if (idxA !== -1) return -1;
+                            if (idxB !== -1) return 1;
+                          }
+                          const idxA = desiredOrder.indexOf(a);
+                          const idxB = desiredOrder.indexOf(b);
                           if (idxA !== -1 && idxB !== -1) return idxA - idxB;
                           if (idxA !== -1) return -1;
                           if (idxB !== -1) return 1;
